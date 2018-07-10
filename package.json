@@ -13,12 +13,12 @@
     "url": "https://www.devexpress.com/"
   },
   "bugs": {
-    "url": "https://github.com/ProdPerfect/testcafe/issues"
+    "url": "https://github.com/ProdPerfect/prodperfect-testcafe/issues"
   },
   "homepage": "https://devexpress.github.io/testcafe/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ProdPerfect/testcafe.git"
+    "url": "git+https://github.com/ProdPerfect/prodperfect-testcafe.git"
   },
   "engines": {
     "node": ">=6.0.0"
