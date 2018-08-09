@@ -112,7 +112,7 @@
     "strip-bom": "^2.0.0",
     "testcafe-browser-tools": "1.6.3",
     "prodperfect-testcafe-hammerhead": "1.0.2",
-    "testcafe-legacy-api": "3.1.7",
+    "testcafe-legacy-api": "git://github.com/ProdPerfect/testcafe-legacy-api.git",
     "testcafe-reporter-json": "^2.1.0",
     "testcafe-reporter-list": "^2.1.0",
     "testcafe-reporter-minimal": "^2.1.0",
