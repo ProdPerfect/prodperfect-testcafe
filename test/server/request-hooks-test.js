@@ -1,4 +1,4 @@
-const RequestFilterRule = require('testcafe-hammerhead').RequestFilterRule;
+const RequestFilterRule = require('prodperfect-testcafe-hammerhead').RequestFilterRule;
 const testRunTracker    = require('../../lib/api/test-run-tracker');
 const exportableLib     = require('../../lib/api/exportable-lib');
 const RequestMock       = exportableLib.RequestMock;

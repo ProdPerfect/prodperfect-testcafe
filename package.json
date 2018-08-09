@@ -111,7 +111,7 @@
     "source-map-support": "^0.5.5",
     "strip-bom": "^2.0.0",
     "testcafe-browser-tools": "1.6.3",
-    "testcafe-hammerhead": "git://github.com/ProdPerfect/prodperfect-testcafe-hammerhead#named_item_brackets",
+    "prodperfect-testcafe-hammerhead": "1.0.0",
     "testcafe-legacy-api": "3.1.7",
     "testcafe-reporter-json": "^2.1.0",
     "testcafe-reporter-list": "^2.1.0",

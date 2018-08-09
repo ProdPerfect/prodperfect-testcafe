@@ -2,7 +2,7 @@ var url  = require('url');
 var fs   = require('fs');
 var path = require('path');
 
-var createShadowStylesheet = require('testcafe-hammerhead/lib/shadow-ui/create-shadow-stylesheet');
+var createShadowStylesheet = require('prodperfect-testcafe-hammerhead/lib/shadow-ui/create-shadow-stylesheet');
 
 
 //The following code is copied from testcafe-hammerhead
