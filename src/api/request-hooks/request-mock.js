@@ -1,5 +1,5 @@
 import RequestHook from './hook';
-import { ResponseMock, RequestFilterRule } from 'testcafe-hammerhead';
+import { ResponseMock, RequestFilterRule } from 'prodperfect-testcafe-hammerhead';
 import { RequestHookConfigureAPIError } from '../../errors/test-run/index';
 
 class RequestMock extends RequestHook {
