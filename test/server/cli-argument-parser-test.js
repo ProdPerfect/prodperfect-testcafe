@@ -386,7 +386,7 @@ describe('CLI argument parser', function () {
     });
 
     it('Should parse command line arguments', function () {
-        return parse('-r list -S -q -e --hostname myhost --proxy localhost:1234 --proxy-bypass localhost:5678 --qr-code --app run-app --speed 0.5 --debug-on-fail --disable-page-reloads ie test/server/data/file-list/file-1.js')
+        return parse('-r list -S -q -e --hostname myhost --proxy localhost:1234 --proxy-bypass localhost:5678 --qr-code --app run-app --speed 0.5 --debug-on-fail --disable-page-reloads ie test/server/data/file-list/file-1.js --record-screen-capture')
             .then(function (parser) {
                 expect(parser.browsers).eql(['ie']);
                 expect(parser.src).eql([path.resolve(process.cwd(), 'test/server/data/file-list/file-1.js')]);
@@ -403,6 +403,7 @@ describe('CLI argument parser', function () {
                 expect(parser.opts.proxy).to.be.ok;
                 expect(parser.opts.proxyBypass).to.be.ok;
                 expect(parser.opts.debugOnFail).to.be.ok;
+                expect(parser.opts.recordScreenCapture).to.be.ok;
             });
     });
 
@@ -437,7 +438,8 @@ describe('CLI argument parser', function () {
             { long: '--ssl' },
             { long: '--qr-code' },
             { long: '--color' },
-            { long: '--no-color' }
+            { long: '--no-color' },
+            { long: '--record-screen-capture' }
         ];
 
         var parser  = new CliArgumentParser('');
@@ -449,4 +451,3 @@ describe('CLI argument parser', function () {
             expect(find(options, EXPECTED_OPTIONS[i])).not.eql(void 0, WARNING);
     });
 });
-
