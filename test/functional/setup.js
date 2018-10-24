@@ -17,8 +17,8 @@ var browsersInfo = null;
 var connector        = null;
 var browserInstances = null;
 
-const WAIT_FOR_FREE_MACHINES_REQUEST_INTERVAL  = 60000;
-const WAIT_FOR_FREE_MACHINES_MAX_ATTEMPT_COUNT = 60;
+// const WAIT_FOR_FREE_MACHINES_REQUEST_INTERVAL  = 60000;
+// const WAIT_FOR_FREE_MACHINES_MAX_ATTEMPT_COUNT = 60;
 
 const BROWSER_OPENING_TIMEOUT = 90000;
 
@@ -32,7 +32,7 @@ var isBrowserStack  = browserProvider === config.browserProviderNames.browsersta
 
 config.browsers = environment.browsers;
 
-const REQUESTED_MACHINES_COUNT = environment.browsers.length;
+// const REQUESTED_MACHINES_COUNT = environment.browsers.length;
 
 function getBrowserInfo (settings) {
     return Promise
