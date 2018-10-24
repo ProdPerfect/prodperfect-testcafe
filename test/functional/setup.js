@@ -69,10 +69,10 @@ function openRemoteBrowsers () {
 
     return connector
         .connect()
-        .then(function () {
-            return connector.waitForFreeMachines(REQUESTED_MACHINES_COUNT,
-                WAIT_FOR_FREE_MACHINES_REQUEST_INTERVAL, WAIT_FOR_FREE_MACHINES_MAX_ATTEMPT_COUNT);
-        })
+        // .then(function () {
+        //     return connector.waitForFreeMachines(REQUESTED_MACHINES_COUNT,
+        //         WAIT_FOR_FREE_MACHINES_REQUEST_INTERVAL, WAIT_FOR_FREE_MACHINES_MAX_ATTEMPT_COUNT);
+        // })
         .then(function () {
             var buildInfo = {
                 jobName: environment.jobName,
@@ -272,4 +272,3 @@ if (config.useLocalBrowsers && !config.isLegacyEnvironment) {
     require('./fixtures/api/es-next/take-screenshot/test');
     require('./fixtures/screenshots-on-fails/test');
 }
-
