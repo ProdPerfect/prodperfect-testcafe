@@ -70,7 +70,7 @@ function openRemoteBrowsers () {
     return connector
         .connect()
         .then(function () {
-            return connector.waitForFreeMachines(1,//REQUESTED_MACHINES_COUNT,
+            return connector.waitForFreeMachines(1, //REQUESTED_MACHINES_COUNT,
                 WAIT_FOR_FREE_MACHINES_REQUEST_INTERVAL, WAIT_FOR_FREE_MACHINES_MAX_ATTEMPT_COUNT);
         })
         .then(function () {
