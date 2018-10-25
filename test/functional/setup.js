@@ -17,8 +17,8 @@ var browsersInfo = null;
 var connector        = null;
 var browserInstances = null;
 
-// const WAIT_FOR_FREE_MACHINES_REQUEST_INTERVAL  = 60000;
-// const WAIT_FOR_FREE_MACHINES_MAX_ATTEMPT_COUNT = 60;
+const WAIT_FOR_FREE_MACHINES_REQUEST_INTERVAL  = 60000;
+const WAIT_FOR_FREE_MACHINES_MAX_ATTEMPT_COUNT = 60;
 
 const BROWSER_OPENING_TIMEOUT = 90000;
 
@@ -69,10 +69,10 @@ function openRemoteBrowsers () {
 
     return connector
         .connect()
-        // .then(function () {
-        //     return connector.waitForFreeMachines(REQUESTED_MACHINES_COUNT,
-        //         WAIT_FOR_FREE_MACHINES_REQUEST_INTERVAL, WAIT_FOR_FREE_MACHINES_MAX_ATTEMPT_COUNT);
-        // })
+        .then(function () {
+            return connector.waitForFreeMachines(1,//REQUESTED_MACHINES_COUNT,
+                WAIT_FOR_FREE_MACHINES_REQUEST_INTERVAL, WAIT_FOR_FREE_MACHINES_MAX_ATTEMPT_COUNT);
+        })
         .then(function () {
             var buildInfo = {
                 jobName: environment.jobName,
