@@ -635,6 +635,24 @@ gulp.step('test-functional-travis-desktop-osx-and-ms-edge-run', function () {
 
 gulp.task('test-functional-travis-desktop-osx-and-ms-edge', gulp.series('build', 'test-functional-travis-desktop-osx-and-ms-edge-run'));
 
+gulp.step('test-functional-osx-safari', function () {
+    return testFunctional('test/functional/fixtures', functionalTestConfig.testingEnvironmentNames.osXDesktopSafari, functionalTestConfig.browserProviderNames.browserstack);
+});
+
+gulp.step('test-functional-osx-chrome', function () {
+    return testFunctional('test/functional/fixtures', functionalTestConfig.testingEnvironmentNames.osXDesktopChrome, functionalTestConfig.browserProviderNames.browserstack);
+});
+
+gulp.step('test-functional-osx-firefox', function () {
+    return testFunctional('test/functional/fixtures', functionalTestConfig.testingEnvironmentNames.osXDesktopFirefox, functionalTestConfig.browserProviderNames.browserstack);
+});
+
+gulp.step('test-functional-ms-edge', function () {
+    return testFunctional('test/functional/fixtures', functionalTestConfig.testingEnvironmentNames.MSEdge, functionalTestConfig.browserProviderNames.browserstack);
+});
+
+gulp.task('test-functional-prodperfect-desktop-osx-and-ms-edge', gulp.series('build', 'test-functional-osx-safari', 'test-functional-osx-chrome', 'test-functional-osx-firefox', 'test-functional-ms-edge'));
+
 gulp.step('test-functional-travis-mobile-run', function () {
     return testFunctional('test/functional/fixtures', functionalTestConfig.testingEnvironmentNames.mobileBrowsers, functionalTestConfig.browserProviderNames.browserstack);
 });

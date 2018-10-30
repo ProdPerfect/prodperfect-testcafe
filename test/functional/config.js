@@ -16,7 +16,11 @@ var testingEnvironmentNames = {
     localBrowsers:               'local-browsers',
     localHeadlessBrowsers:       'local-headless-browsers',
     oldBrowsers:                 'old-browsers',
-    legacy:                      'legacy'
+    legacy:                      'legacy',
+    osXDesktopSafari:            'osx-desktop-safari',
+    osXDesktopChrome:            'osx-desktop-chrome',
+    osXDesktopFirefox:           'osx-desktop-firefox',
+    msEdge:                      'ms-edge'
 };
 
 var testingEnvironments = {};
@@ -48,6 +52,96 @@ testingEnvironments[testingEnvironmentNames.osXDesktopAndMSEdgeBrowsers] = {
             name:      'firefox',
             alias:     'firefox-osx'
         },
+        {
+            os:        'Windows',
+            osVersion: '10',
+            name:      'edge',
+            alias:     'edge',
+        }
+    ]
+};
+
+testingEnvironments[testingEnvironmentNames.osXDesktopSafari] = {
+    jobName: 'functional tests - OS X desktop Safari',
+
+    browserstack: {
+        username:  process.env.BROWSER_STACK_USERNAME,
+        accessKey: process.env.BROWSER_STACK_ACCESS_KEY
+    },
+
+    browsers: [
+        {
+            os:        'OS X',
+            osVersion: 'Sierra',
+            name:      'safari',
+            alias:     'safari'
+        }
+    ]
+};
+
+testingEnvironments[testingEnvironmentNames.osXDesktopChrome] = {
+    jobName: 'functional tests - OS X desktop Chrome',
+
+    browserstack: {
+        username:  process.env.BROWSER_STACK_USERNAME,
+        accessKey: process.env.BROWSER_STACK_ACCESS_KEY
+    },
+
+    browsers: [
+        {
+            os:        'OS X',
+            osVersion: 'Sierra',
+            name:      'chrome',
+            alias:     'chrome-osx'
+        }
+    ]
+};
+
+testingEnvironments[testingEnvironmentNames.osXDesktopFirefox] = {
+    jobName: 'functional tests - OS X desktop Firefox',
+
+    browserstack: {
+        username:  process.env.BROWSER_STACK_USERNAME,
+        accessKey: process.env.BROWSER_STACK_ACCESS_KEY
+    },
+
+    browsers: [
+        {
+            os:        'OS X',
+            osVersion: 'Sierra',
+            name:      'safari',
+            alias:     'safari'
+        },
+        {
+            os:        'OS X',
+            osVersion: 'Sierra',
+            name:      'chrome',
+            alias:     'chrome-osx'
+        },
+        {
+            os:        'OS X',
+            osVersion: 'Sierra',
+            name:      'firefox',
+            alias:     'firefox-osx'
+        },
+        {
+            os:        'Windows',
+            osVersion: '10',
+            name:      'edge',
+            alias:     'edge',
+        }
+    ]
+};
+
+testingEnvironments[testingEnvironmentNames.MSEdge] = {
+    jobName: 'functional tests - MS edge',
+
+    browserstack: {
+        username:  process.env.BROWSER_STACK_USERNAME,
+        accessKey: process.env.BROWSER_STACK_ACCESS_KEY
+    },
+
+    browsers: [
         {
             os:        'Windows',
             osVersion: '10',
