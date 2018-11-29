@@ -651,7 +651,7 @@ gulp.step('test-functional-ms-edge', function () {
     return testFunctional('test/functional/fixtures', functionalTestConfig.testingEnvironmentNames.MSEdge, functionalTestConfig.browserProviderNames.browserstack);
 });
 
-gulp.task('test-functional-prodperfect-desktop-osx-and-ms-edge', gulp.series('build', 'test-functional-osx-safari', 'test-functional-osx-chrome', 'test-functional-osx-firefox', 'test-functional-ms-edge'));
+gulp.task('test-functional-prodperfect-desktop-osx-and-ms-edge', gulp.series('build', 'test-functional-osx-chrome'));
 
 gulp.step('test-functional-travis-mobile-run', function () {
     return testFunctional('test/functional/fixtures', functionalTestConfig.testingEnvironmentNames.mobileBrowsers, functionalTestConfig.browserProviderNames.browserstack);
@@ -664,6 +664,12 @@ gulp.step('test-functional-local-run', function () {
 });
 
 gulp.task('test-functional-local', gulp.series('build', 'test-functional-local-run'));
+
+gulp.step('test-functional-local-headless-chrome-run', function () {
+    return testFunctional('test/functional/fixtures', functionalTestConfig.testingEnvironmentNames.localHeadlessChrome);
+});
+
+gulp.task('test-functional-local-headless-chrome', gulp.series('build', 'test-functional-local-headless-chrome-run'));
 
 gulp.step('test-functional-local-ie-run', function () {
     return testFunctional('test/functional/fixtures', functionalTestConfig.testingEnvironmentNames.localBrowsersIE);

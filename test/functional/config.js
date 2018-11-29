@@ -14,6 +14,7 @@ var testingEnvironmentNames = {
     localBrowsersIE:             'local-browsers-ie',
     localBrowsersChromeFirefox:  'local-browsers-chrome-firefox',
     localBrowsers:               'local-browsers',
+    localHeadlessChrome:         'local-headless-chrome',
     localHeadlessBrowsers:       'local-headless-browsers',
     oldBrowsers:                 'old-browsers',
     legacy:                      'legacy',
@@ -109,26 +110,8 @@ testingEnvironments[testingEnvironmentNames.osXDesktopFirefox] = {
         {
             os:        'OS X',
             osVersion: 'Sierra',
-            name:      'safari',
-            alias:     'safari'
-        },
-        {
-            os:        'OS X',
-            osVersion: 'Sierra',
-            name:      'chrome',
-            alias:     'chrome-osx'
-        },
-        {
-            os:        'OS X',
-            osVersion: 'Sierra',
             name:      'firefox',
             alias:     'firefox-osx'
-        },
-        {
-            os:        'Windows',
-            osVersion: '10',
-            name:      'edge',
-            alias:     'edge',
         }
     ]
 };
@@ -254,6 +237,19 @@ testingEnvironments[testingEnvironmentNames.localHeadlessBrowsers] = {
             platform:    'Windows 10',
             browserName: 'firefox:headless:disableMultiprocessing=true',
             alias:       'firefox'
+        }
+    ]
+};
+
+testingEnvironments[testingEnvironmentNames.localHeadlessChrome] = {
+    isLocalBrowsers: true,
+
+    browsers: [
+        {
+            platform:    'Windows 10',
+            browserName: 'chrome:headless --no-sandbox',
+            userAgent:   'headlesschrome',
+            alias:       'chrome'
         }
     ]
 };
