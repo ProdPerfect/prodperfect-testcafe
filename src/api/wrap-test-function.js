@@ -3,12 +3,11 @@ import testRunTracker from './test-run-tracker';
 import TestCafeErrorList from '../errors/error-list';
 import { MissingAwaitError } from '../errors/test-run';
 
-
 export default function wrapTestFunction (fn) {
     return async testRun => {
-        var result     = null;
-        var errList    = new TestCafeErrorList();
-        var markeredfn = testRunTracker.addTrackingMarkerToFunction(testRun.id, fn);
+        let result       = null;
+        const errList    = new TestCafeErrorList();
+        const markeredfn = testRunTracker.addTrackingMarkerToFunction(testRun.id, fn);
 
         testRun.controller = new TestController(testRun);
 
@@ -21,9 +20,11 @@ export default function wrapTestFunction (fn) {
             errList.addError(err);
         }
 
-        testRun.controller.callsitesWithoutAwait.forEach(callsite => {
-            errList.addError(new MissingAwaitError(callsite));
-        });
+        if (!errList.hasUncaughtErrorsInTestCode) {
+            testRun.controller.callsitesWithoutAwait.forEach(callsite => {
+                errList.addError(new MissingAwaitError(callsite));
+            });
+        }
 
         if (errList.hasErrors)
             throw errList;

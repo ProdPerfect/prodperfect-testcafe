@@ -26,32 +26,43 @@ testcafe [options] <browser-list-comma-separated> <file-or-glob ...>
   * [-r \<name\[:file\],\[...\]\>, --reporter \<name\[:file\],\[...\]\>](#-r-namefile---reporter-namefile)
   * [-s \<path\>, --screenshots \<path\>](#-s-path---screenshots-path)
   * [-S, --screenshots-on-fails](#-s---screenshots-on-fails)
+  * [-p, --screenshot-path-pattern](#-p---screenshot-path-pattern)
   * [-q, --quarantine-mode](#-q---quarantine-mode)
+  * [-d, --debug-mode](#-d---debug-mode)
   * [-e, --skip-js-errors](#-e---skip-js-errors)
-  * [-c \<n\>, --concurrency \<n\>](#-c-n---concurrency-n)
+  * [-u, --skip-uncaught-errors](#-u---skip-uncaught-errors)
   * [-t \<name\>, --test \<name\>](#-t-name---test-name)
   * [-T \<pattern\>, --test-grep \<pattern\>](#-t-pattern---test-grep-pattern)
   * [-f \<name\>, --fixture \<name\>](#-f-name---fixture-name)
   * [-F \<pattern\>, --fixture-grep \<pattern\>](#-f-pattern---fixture-grep-pattern)
+  * [--test-meta \<key=value\[,key2=value2,...\]\>](#--test-meta-keyvaluekey2value2)
+  * [--fixture-meta \<key=value\[,key2=value2,...\]\>](#--fixture-meta-keyvaluekey2value2)
   * [-a \<command\>, --app \<command\>](#-a-command---app-command)
-  * [-d, --debug-mode](#-d---debug-mode)
+  * [-c \<n\>, --concurrency \<n\>](#-c-n---concurrency-n)
   * [--debug-on-fail](#--debug-on-fail)
   * [--app-init-delay \<ms\>](#--app-init-delay-ms)
   * [--selector-timeout \<ms\>](#--selector-timeout-ms)
   * [--assertion-timeout \<ms\>](#--assertion-timeout-ms)
   * [--page-load-timeout \<ms\>](#--page-load-timeout-ms)
-  * [--proxy \<host\>](#--proxy-host)
-  * [--proxy-bypass \<rules\>](#--proxy-bypass-rules)
+  * [--speed \<factor\>](#--speed-factor)
   * [--ports \<port1,port2\>](#--ports-port1port2)
   * [--hostname \<name\>](#--hostname-name)
-  * [--speed \<factor\>](#--speed-factor)
+  * [--proxy \<host\>](#--proxy-host)
+  * [--proxy-bypass \<rules\>](#--proxy-bypass-rules)
+  * [--ssl \<options\>](#--ssl-options)
+  * [--dev](#--dev)
   * [--qr-code](#--qr-code)
+  * [--sf, --stop-on-first-fail](#--sf---stop-on-first-fail)
+  * [--disable-test-syntax-validation](#--disable-test-syntax-validation)
   * [--color](#--color)
   * [--no-color](#--no-color)
 
 > Important! Make sure to keep the browser tab that is running tests active. Do not minimize the browser window.
 > Inactive tabs and minimized browser windows switch to a lower resource consumption mode
 > where tests do not always execute correctly.
+
+If a browser stops responding while it executes tests, TestCafe restarts the browser and reruns the current test in a new browser instance.
+If the same problem occurs with this test two more times, the test run finishes and an error is thrown.
 
 ## Browser List
 
@@ -268,11 +279,25 @@ Note that only one reporter can write to `stdout`. All other reporters must outp
 
 ### -s \<path\>, --screenshots \<path\>
 
-Enables screenshot capturing and specifies the directory where screenshots are saved.
+Enables screenshots and specifies the base directory where they are saved.
 
 ```sh
 testcafe all tests/sample-fixture.js -s screenshots
 ```
+
+#### Path Patterns
+
+The captured screenshots are organized into subdirectories within the base directory. The following path patterns are used to define a relative path and name for screenshots the [Take Screenshot](../test-api/actions/take-screenshot.md) actions take:
+
+* `${DATE}_${TIME}\test-${TEST_INDEX}\${USERAGENT}\${FILE_INDEX}.png` if the [quarantine mode](#-q---quarantine-mode) is disabled;
+* `${DATE}_${TIME}\test-${TEST_INDEX}\run-${QUARANTINE_ATTEMPT}\${USERAGENT}\${FILE_INDEX}.png` if the [quarantine mode](#-q---quarantine-mode) is enabled.
+
+If TestCafe takes screenshots when a test fails (see [--screenshots-on-fails](#-s---screenshots-on-fails) option), the following path patterns are used:
+
+* `${DATE}_${TIME}\test-${TEST_INDEX}\${USERAGENT}\errors\${FILE_INDEX}.png`;
+* `${DATE}_${TIME}\test-${TEST_INDEX}\run-${QUARANTINE_ATTEMPT}\${USERAGENT}\errors\${FILE_INDEX}.png` if the [quarantine mode](#-q---quarantine-mode) is enabled.
+
+You can also use the [--screenshot-path-pattern](#-p---screenshot-path-pattern) option to specify a custom pattern.
 
 ### -S, --screenshots-on-fails
 
@@ -286,22 +311,61 @@ For example, the following command runs tests from the
 testcafe all tests/sample-fixture.js -S -s screenshots
 ```
 
+### -p, --screenshot-path-pattern
+
+Specifies a custom pattern to compose screenshot files' relative path and name. This pattern overrides the default [path pattern](#path-patterns).
+
+You can use the following placeholders in the pattern:
+
+Placeholder | Description
+----------- | ------------
+`${DATE}` | The test run's start date (YYYY-MM-DD).
+`${TIME}` | The test run's start time (HH-mm-ss).
+`${TEST_INDEX}` | The test's index.
+`${FILE_INDEX}` | The screenshot file's index.
+`${QUARANTINE_ATTEMPT}` | The [quarantine](programming-interface/runner.md#quarantine-mode) attempt's number. If the quarantine mode is disabled, the `${QUARANTINE_ATTEMPT}` placeholder's value is 1.
+`${FIXTURE}` | The fixture's name.
+`${TEST}` | The test's name.
+`${USERAGENT}` | The combination of `${BROWSER}`, `${BROWSER_VERSION}`, `${OS}`, and `${OS_VERSION}` (separated by underscores).
+`${BROWSER}` | The browser's name.
+`${BROWSER_VERSION}` | The browser's version.
+`${OS}` | The operation system's name.
+`${OS_VERSION}` | The operation system's version.
+
+```sh
+testcafe all tests/sample-fixture.js -s screenshots -p '${DATE}_${TIME}/test-${TEST_INDEX}/${USERAGENT}/${FILE_INDEX}.png'
+```
+
+In Windows `cmd.exe` shell, use double quotes because single quotes do not escape spaces.
+
+```sh
+testcafe all tests/sample-fixture.js -s screenshots -p "${DATE} ${TIME}/test ${TEST_INDEX}/${USERAGENT}/${FILE_INDEX}.png"
+```
+
 ### -q, --quarantine-mode
 
-Enables the quarantine mode for tests that fail.
-In this mode, a failed test is executed several times.
-The test result depends on the outcome (*passed* or *failed*) that occurs most often.
-That is, if the test fails on most attempts, the result is *failed*.
-
-If the test result differs between test runs, the test is marked as unstable.
+Enables the [quarantine mode](programming-interface/runner.md#quarantine-mode) for tests that fail.
 
 ```sh
 testcafe all tests/sample-fixture.js -q
 ```
 
+### -d, --debug-mode
+
+Specify this option to run tests in the debugging mode. In this mode, test execution is paused before the first action or assertion allowing you to invoke the developer tools and debug.
+
+The footer displays a status bar in which you can resume test execution or skip to the next action or assertion.
+
+![Debugging status bar](../../images/debugging/client-debugging-footer.png)
+
+> If the test you run in the debugging mode contains a [test hook](../test-api/test-code-structure.md#test-hooks),
+> it is paused within this hook before the first action.
+
+You can also use the **Unlock page** switch in the footer to unlock the tested page and interact with its elements.
+
 ### -e, --skip-js-errors
 
-When a JavaScript error occurs on a tested web page, TestCafe stops test execution and posts an error message to a report. To ignore JavaScript errors, use the `-e`(`--skip-js-errors`) option.
+When a JavaScript error occurs on a tested web page, TestCafe stops test execution and posts an error message and a stack trace to a report. To ignore JavaScript errors, use the `-e`(`--skip-js-errors`) option.
 
 For example, the following command runs tests from the specified file and forces TestCafe to ignore JavaScript errors:
 
@@ -309,19 +373,16 @@ For example, the following command runs tests from the specified file and forces
 testcafe ie tests/sample-fixture.js -e
 ```
 
-### -c \<n\>, --concurrency \<n\>
+### -u, --skip-uncaught-errors
 
-Specifies that tests should run concurrently.
+When an uncaught error or unhandled promise rejection occurs on the server during test execution, TestCafe stops the test and posts an error message to a report. Note that if you run tests [concurrently](#-c-n---concurrency-n) and such an error occurs in any test, all tests that are running at this moment will fail.
 
-TestCafe opens `n` instances of the same browser and creates a pool of browser instances.
-Tests are run concurrently against this pool, that is, each test is run in the first free instance.
+To ignore these errors, use the `-u`(`--skip-uncaught-errors`) option.
 
-See [Concurrent Test Execution](common-concepts/concurrent-test-execution.md) to learn more about concurrent test execution.
-
-The following example shows how to run tests in three Chrome instances:
+For example, the following command runs tests from the specified file and forces TestCafe to ignore uncaught errors and unhandled promise rejections:
 
 ```sh
-testcafe -c 3 chrome tests/sample-fixture.js
+testcafe ie tests/sample-fixture.js -u
 ```
 
 ### -t \<name\>, --test \<name\>
@@ -362,6 +423,26 @@ For example, the following command runs fixtures whose names match `Page.*`. The
 testcafe ie my-tests -F "Page.*"
 ```
 
+### --test-meta \<key=value\[,key2=value2,...\]\>
+
+TestCafe runs tests whose [metadata](../test-api/test-code-structure.md#specifying-testing-metadata) [matches](https://lodash.com/docs/#isMatch) the specified key-value pair.
+
+For example, the following command runs tests whose metadata has the `device` property set to the `mobile` value and the `env` property set to the `production` value.
+
+```sh
+testcafe chrome my-tests --test-meta device=mobile,env=production
+```
+
+### --fixture-meta \<key=value\[,key2=value2,...\]\>
+
+TestCafe runs tests whose fixture's [metadata](../test-api/test-code-structure.md#specifying-testing-metadata) [matches](https://lodash.com/docs/#isMatch) the specified key-value pair.
+
+For example, the following command runs tests whose fixture's metadata has the `device` property set to the `mobile` value and the `env` property set to the `production` value.
+
+```sh
+testcafe chrome my-tests --fixture-meta device=mobile,env=production
+```
+
 ### -a \<command\>, --app \<command\>
 
 Executes the specified shell command before running tests. Use it to launch or deploy the application you are going to test.
@@ -376,24 +457,26 @@ testcafe chrome my-tests --app "node server.js"
 
 Use the [--app-init-delay](#--app-init-delay-ms) option to specify the amount of time allowed for this command to initialize the tested application.
 
-### -d, --debug-mode
+### -c \<n\>, --concurrency \<n\>
 
-Specify this option to run tests in the debugging mode. In this mode, test execution is paused before the first action or assertion allowing you to invoke the developer tools and debug.
+Specifies that tests should run concurrently.
 
-The footer displays a status bar in which you can resume test execution or skip to the next action or assertion.
+TestCafe opens `n` instances of the same browser and creates a pool of browser instances.
+Tests are run concurrently against this pool, that is, each test is run in the first free instance.
 
-![Debugging status bar](../../images/debugging/client-debugging-footer.png)
+See [Concurrent Test Execution](common-concepts/concurrent-test-execution.md) for more information about concurrent test execution.
 
-> If the test you run in the debugging mode contains a [test hook](../test-api/test-code-structure.md#test-hooks),
-> it is paused within this hook before the first action.
+The following example shows how to run tests in three Chrome instances:
 
-You can also use the **Unlock page** switch in the footer to unlock the tested page and interact with its elements.
+```sh
+testcafe -c 3 chrome tests/sample-fixture.js
+```
 
 ### --debug-on-fail
 
 Specifies whether to automatically enter the [debug mode](#-d---debug-mode) when a test fails.
 
-If this option is enabled, TestCafe pauses the test at the moment it fails. This allows you to view the tested page and determine the cause of the fail.
+If this option is enabled, TestCafe pauses the test when it fails. This allows you to view the tested page and determine the cause of the fail.
 
 When you are done, click the **Finish** button in the footer to end test execution.
 
@@ -411,7 +494,7 @@ testcafe chrome my-tests --app "node server.js" --app-init-delay 4000
 
 ### --selector-timeout \<ms\>
 
-Specifies the time (in milliseconds) within which [selectors](../test-api/selecting-page-elements/selectors/README.md) attempts to obtain a node to be returned. See [Selector Timeout](../test-api/selecting-page-elements/selectors/using-selectors.md#selector-timeout).
+Specifies the time (in milliseconds) within which [selectors](../test-api/selecting-page-elements/selectors/README.md) attempt to obtain a node to be returned. See [Selector Timeout](../test-api/selecting-page-elements/selectors/using-selectors.md#selector-timeout).
 
 **Default value**: `10000`
 
@@ -421,7 +504,7 @@ testcafe ie my-tests --selector-timeout 500000
 
 ### --assertion-timeout \<ms\>
 
-Specifies the time (in milliseconds) within which TestCafe makes attempts to successfully execute an [assertion](../test-api/assertions/README.md)
+Specifies the time (in milliseconds) TestCafe attempts to successfully execute an [assertion](../test-api/assertions/README.md)
 if a [selector property](../test-api/selecting-page-elements/selectors/using-selectors.md#define-assertion-actual-value)
 or a [client function](../test-api/obtaining-data-from-the-client/README.md) was passed as an actual value.
 See [Smart Assertion Query Mechanism](../test-api/assertions/README.md#smart-assertion-query-mechanism).
@@ -448,6 +531,35 @@ You can set the page load timeout to `0` to skip waiting for the `window.load` e
 testcafe ie my-tests --page-load-timeout 0
 ```
 
+### --speed \<factor\>
+
+Specifies the test execution speed.
+
+Tests are run at the maximum speed by default. You can use this option
+to slow the test down.
+
+`factor` should be a number between `1` (the fastest) and `0.01` (the slowest).
+
+```sh
+testcafe chrome my-tests --speed 0.1
+```
+
+If the speed is also specified for an [individual action](../test-api/actions/action-options.md#basic-action-options), the action's speed setting overrides the test speed.
+
+**Default value**: `1`
+
+### --ports \<port1,port2\>
+
+Specifies custom port numbers TestCafe uses to perform testing. The number range is [0-65535].
+
+TestCafe automatically selects ports if ports are not specified.
+
+### --hostname \<name\>
+
+Specifies your computer's hostname. It is used when running tests in [remote browsers](#remote-browsers).
+
+If the hostname is not specified, TestCafe uses the operating system's hostname or the current machine's network IP address.
+
 ### --proxy \<host\>
 
 Specifies the proxy server used in your local network to access the Internet.
@@ -472,7 +584,7 @@ Specifies the resources accessed bypassing the proxy server.
 
 When you access the Internet through a proxy server specified using the [--proxy](#--proxy-host) option, you may still need some local or external resources to be accessed directly. In this instance, provide their URLs to the `--proxy-bypass` option.
 
-The `rules` parameter takes a comma-separated list (without spaces) of URLs that require direct access. You can replace parts of the URL with wildcards `*`. TestCafe will correspond these symbols to any number of characters in the URL. Wildcards at the beginning and end of the rules can be omitted (`*.mycompany.com` and `.mycompany.com` have the same effect).
+The `rules` parameter takes a comma-separated list (without spaces) of URLs that require direct access. You can replace parts of the URL with the `*` wildcard that matches any number of characters. Wildcards at the beginning and end of the rules can be omitted (`*.mycompany.com` and `.mycompany.com` have the same effect).
 
 The following example uses the proxy server at `proxy.corp.mycompany.com` with the `localhost:8080` address accessed directly:
 
@@ -492,34 +604,30 @@ The `*.mycompany.com` value means that all URLs in the `mycompany.com` subdomain
 testcafe chrome my-tests/**/*.js --proxy proxy.corp.mycompany.com --proxy-bypass *.mycompany.com
 ```
 
-### --ports \<port1,port2\>
+### --ssl \<options\>
 
-Specifies custom port numbers TestCafe uses to perform testing. The number range is [0-65535].
+Provides options that allow you to establish an HTTPS connection between the client browser and the TestCafe server.
 
-TestCafe automatically selects ports if ports are not specified.
-
-### --hostname \<name\>
-
-Specifies your computer's hostname. It is used when running tests in [remote browsers](#remote-browsers).
-
-If the hostname is not specified, TestCafe uses the operating system hostname or network IP address of the current machine.
-
-### --speed \<factor\>
-
-Specifies the test execution speed.
-
-Tests are run at the maximum speed by default. You can use this option
-to slow the test down.
-
-`factor` should be a number between `1` (the fastest) and `0.01` (the slowest).
+The `options` parameter contains options required to initialize
+[a Node.js HTTPS server](https://nodejs.org/api/https.html#https_https_createserver_options_requestlistener).
+The most commonly used SSL options are described in the [TLS topic](https://nodejs.org/api/tls.html#tls_tls_createsecurecontext_options) in Node.js documentation.
+Options are specified in a semicolon-separated string.
 
 ```sh
-testcafe chrome my-tests --speed 0.1
+testcafe --ssl pfx=path/to/file.pfx;rejectUnauthorized=true;...
 ```
 
-If the speed is also specified for an [individual action](../test-api/actions/action-options.md#basic-action-options), the action's speed setting overrides the test speed.
+Provide the `--ssl` flag if the tested webpage uses browser features that require
+secure origin ([Service Workers](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API), [Geolocation API](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API), [ApplePaySession](https://developer.apple.com/documentation/apple_pay_on_the_web/applepaysession), [SubtleCrypto](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto), etc).
+See [Connect to the TestCafe Server over HTTPS](common-concepts/connect-to-the-testcafe-server-over-https.md) for more information.
 
-**Default value**: `1`
+### --dev
+
+Enables mechanisms to log and diagnose errors. You should enable this option if you are going to contact TestCafe Support to report an issue.
+
+```sh
+testcafe chrome my-tests --dev
+```
 
 ### --qr-code
 
@@ -529,10 +637,53 @@ Outputs a QR-code that represents URLs used to connect the [remote browsers](#re
 testcafe remote my-tests --qr-code
 ```
 
+### --sf, --stop-on-first-fail
+
+Stops an entire test run if any test fails. This allows you not to wait for all the tests included in the test task to finish and allows focusing on the first error.
+
+```sh
+testcafe chrome my-tests --sf
+```
+
+### --disable-test-syntax-validation
+
+Disables checks for `test` and `fixture` directives in test files. Use this flag to run dynamically loaded tests.
+
+TestCafe requires test files to have the [fixture](../test-api/test-code-structure.md#fixtures) and [test](../test-api/test-code-structure.md#tests) directives. Otherwise, an error is thrown.
+
+However, when you import tests from external libraries or generate them dynamically, the `.js` file provided to TestCafe may not contain any tests.
+
+**external-lib.js**
+
+```js
+export default function runTests () {
+    fixture `External tests`
+        .page `http:///example.com`;
+
+    test('My Test', async t => {
+        // ...
+    });
+}
+```
+
+**test.js**
+
+```js
+import runTests from './external-lib';
+
+runTests();
+```
+
+In this instance, specify the `--disable-test-syntax-validation` flag to bypass checks for test syntax.
+
+```sh
+testcafe safari test.js --disable-test-syntax-validation
+```
+
 ### --color
 
-Enables colors on the command line.
+Enables colors in the command line.
 
 ### --no-color
 
-Disables colors on the command line.
+Disables colors in the command line.

@@ -1,17 +1,18 @@
 import Promise from 'pinkie';
-import TestCafe from './testcafe';
-import * as endpointUtils from 'endpoint-utils';
-import setupExitHook from 'async-exit-hook';
 import { GeneralError } from './errors/runtime';
 import MESSAGE from './errors/runtime/message';
 import embeddingUtils from './embedding-utils';
 import exportableLib from './api/exportable-lib';
 
+const lazyRequire   = require('import-lazy')(require);
+const TestCafe      = lazyRequire('./testcafe');
+const endpointUtils = lazyRequire('endpoint-utils');
+const setupExitHook = lazyRequire('async-exit-hook');
 
 // Validations
 async function getValidHostname (hostname) {
     if (hostname) {
-        var valid = await endpointUtils.isMyHostname(hostname);
+        const valid = await endpointUtils.isMyHostname(hostname);
 
         if (!valid)
             throw new GeneralError(MESSAGE.invalidHostname, hostname);
@@ -24,7 +25,7 @@ async function getValidHostname (hostname) {
 
 async function getValidPort (port) {
     if (port) {
-        var isFree = await endpointUtils.isFreePort(port);
+        const isFree = await endpointUtils.isFreePort(port);
 
         if (!isFree)
             throw new GeneralError(MESSAGE.portIsNotFree, port);
@@ -36,14 +37,18 @@ async function getValidPort (port) {
 }
 
 // API
-async function createTestCafe (hostname, port1, port2, sslOptions) {
+async function createTestCafe (hostname, port1, port2, sslOptions, developmentMode, retryTestPages) {
     [hostname, port1, port2] = await Promise.all([
         getValidHostname(hostname),
         getValidPort(port1),
         getValidPort(port2)
     ]);
 
-    var testcafe = new TestCafe(hostname, port1, port2, sslOptions);
+    const testcafe = new TestCafe(hostname, port1, port2, {
+        ssl: sslOptions,
+        developmentMode,
+        retryTestPages
+    });
 
     setupExitHook(cb => testcafe.close().then(cb));
 
@@ -55,7 +60,7 @@ createTestCafe.embeddingUtils = embeddingUtils;
 
 // Common API
 Object.keys(exportableLib).forEach(key => {
-    createTestCafe[key] = exportableLib[key];
+    Object.defineProperty(createTestCafe, key, { get: () => exportableLib[key] });
 });
 
 export default createTestCafe;

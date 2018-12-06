@@ -4,9 +4,35 @@ clone_depth: 1
 skip_commits:
   message: /^\[docs\]/
 
+branches:
+  except:
+  - new-docs
+
 environment:
-  GULP_TASK: "test-functional-local-ie"
-  NODEJS_VERSION: "stable"
+  NODEJS_VERSION: "8"
+
+  matrix:
+    - GULP_TASK: "test-functional-local-ie"
+
+for:
+-
+  branches:
+    only:
+      - master
+
+  notifications:
+  - provider: Email
+    to:
+    - boris.kirov@devexpress.com
+    - andrey.belym@devexpress.com
+    - elena.dikareva@devexpress.com
+    on_build_success: false
+    on_build_status_changed: false
+
+  environment:
+    matrix:
+    - GULP_TASK: "test-functional-local-chrome-firefox"
+    - GULP_TASK: "test-functional-local-legacy"
 
 install:
 - ps: >-
@@ -27,27 +53,3 @@ build: off
 
 test_script:
 - cmd: npm test
-
-for:
--
-  branches:
-    only:
-      - master
-
-  notifications:
-  - provider: Email
-    to:
-      - boris.kirov@devexpress.com
-      - andrey.belym@devexpress.com
-      - elena.dikareva@devexpress.com
-    on_build_success: false
-    on_build_status_changed: false
-
-  test_script:
-  - cmd: >-
-       node node_modules/gulp/bin/gulp test-functional-local-ie
-       
-       node node_modules/gulp/bin/gulp test-functional-local-chrome-firefox
-       
-       node node_modules/gulp/bin/gulp test-functional-local-legacy
-

@@ -25,13 +25,13 @@ export default class BrowserProviderPluginHost {
     }
 
     runInitScript (browserId, code) {
-        var connection = BrowserConnection.getById(browserId);
+        const connection = BrowserConnection.getById(browserId);
 
         return connection.runInitScript(`(${code})()`);
     }
 
     waitForConnectionReady (browserId) {
-        var connection = BrowserConnection.getById(browserId);
+        const connection = BrowserConnection.getById(browserId);
 
         if (connection.ready)
             return Promise.resolve();
@@ -40,26 +40,26 @@ export default class BrowserProviderPluginHost {
     }
 
     reportWarning (browserId, ...args) {
-        var connection = BrowserConnection.getById(browserId);
+        const connection = BrowserConnection.getById(browserId);
 
         connection.addWarning(...args);
     }
 
     setUserAgentMetaInfo (browserId, message) {
-        var connection = BrowserConnection.getById(browserId);
+        const connection = BrowserConnection.getById(browserId);
 
         connection.setProviderMetaInfo(message);
     }
 
     async closeLocalBrowser (browserId) {
-        var connection = BrowserConnection.getById(browserId);
+        const connection = BrowserConnection.getById(browserId);
 
         await connection.provider._ensureBrowserWindowDescriptor(browserId);
         await connection.provider._closeLocalBrowser(browserId);
     }
 
     async resizeLocalBrowserWindow (browserId, width, height, currentWidth, currentHeight) {
-        var connection = BrowserConnection.getById(browserId);
+        const connection = BrowserConnection.getById(browserId);
 
         await connection.provider._ensureBrowserWindowParameters(browserId);
         await connection.provider._resizeLocalBrowserWindow(browserId, width, height, currentWidth, currentHeight);
@@ -95,7 +95,12 @@ export default class BrowserProviderPluginHost {
     }
 
     // Extra functions
-    async isLocalBrowser (/* browserId, browserName */) {
+    // NOTE: The browserName argument is optional, and must be supplied if the browserId argument is not valid (browser is not opened)
+    async isLocalBrowser (/* browserId[, browserName] */) {
+        return false;
+    }
+
+    isHeadlessBrowser (/* browserId */) {
         return false;
     }
 

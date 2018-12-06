@@ -12,7 +12,7 @@ describe('CLI argument parser', function () {
     tmp.setGracefulCleanup();
 
     function parse (args, cwd) {
-        var parser = new CliArgumentParser(cwd);
+        const parser = new CliArgumentParser(cwd);
 
         args = ['node', 'index.js'].concat(typeof args === 'string' ? args.split(/\s+/) : args);
 
@@ -215,6 +215,35 @@ describe('CLI argument parser', function () {
             return assertRaisesError('-F *+', 'The "--fixture-grep" option value is not a valid regular expression.');
         });
 
+        it('Should filter by test meta with "--test-meta" option', function () {
+            return parse('--test-meta meta=test')
+                .then(function (parser) {
+                    expect(parser.filter(null, null, null, { meta: 'test' })).to.be.true;
+                    expect(parser.filter(null, null, null, { another: 'meta', meta: 'test' })).to.be.true;
+                    expect(parser.filter(null, null, null, {})).to.be.false;
+                    expect(parser.filter(null, null, null, { meta: 'notest' })).to.be.false;
+                });
+        });
+
+        it('Should filter by fixture meta with "--fixture-meta" option', function () {
+            return parse('--fixture-meta meta=test,more=meta')
+                .then(function (parser) {
+                    expect(parser.filter(null, null, null, null, { meta: 'test', more: 'meta' })).to.be.true;
+                    expect(parser.filter(null, null, null, null, { another: 'meta', meta: 'test', more: 'meta' })).to.be.true;
+                    expect(parser.filter(null, null, null, null, {})).to.be.false;
+                    expect(parser.filter(null, null, null, null, { meta: 'test' })).to.be.false;
+                    expect(parser.filter(null, null, null, null, { meta: 'test', more: 'another' })).to.be.false;
+                });
+        });
+
+        it('Should raise error if "--test-meta" value is invalid json', function () {
+            return assertRaisesError('--test-meta error', 'The "--test-meta" option value is not a valid key-value pair.');
+        });
+
+        it('Should raise error if "--fixture-meta" value is invalid json', function () {
+            return assertRaisesError('--fixture-meta error', 'The "--fixture-meta" option value is not a valid key-value pair.');
+        });
+
         it('Should combine filters provided by multiple options', function () {
             return parse('-t thetest1 -T test\\d+$')
                 .then(function (parser) {
@@ -257,13 +286,73 @@ describe('CLI argument parser', function () {
                     expect(parser.filter('thetest1', 'thefixture1')).to.be.true;
                     expect(parser.filter('thetest', 'thefixture1')).to.be.false;
                     expect(parser.filter('thetest1', 'thefixture')).to.be.false;
+                })
+                .then(function () {
+                    return parse('-t thetest1 --test-meta meta=test');
+                })
+                .then(function (parser) {
+                    expect(parser.filter('thetest1', null, null, { meta: 'test' })).to.be.true;
+                    expect(parser.filter('thetest1', null, null, {})).to.be.false;
+                    expect(parser.filter('thetest2', null, null, { meta: 'test' })).to.be.false;
+                })
+                .then(function () {
+                    return parse('-f thefixture1 --test-meta meta=test');
+                })
+                .then(function (parser) {
+                    expect(parser.filter(null, 'thefixture1', null, { meta: 'test' })).to.be.true;
+                    expect(parser.filter(null, 'thefixture1', null, {})).to.be.false;
+                    expect(parser.filter(null, 'thefixture2', null, { meta: 'test' })).to.be.false;
+                })
+                .then(function () {
+                    return parse('-t thetest1 -f thefixture1 --test-meta meta=test');
+                })
+                .then(function (parser) {
+                    expect(parser.filter('thetest1', 'thefixture1', null, { meta: 'test' })).to.be.true;
+                    expect(parser.filter('thetest1', 'thefixture1', null, {})).to.be.false;
+                    expect(parser.filter('thetest1', 'thefixture2', null, { meta: 'test' })).to.be.false;
+                    expect(parser.filter('thetest2', 'thefixture1', null, { meta: 'test' })).to.be.false;
+                })
+                .then(function () {
+                    return parse('-t thetest1 --fixture-meta meta=test');
+                })
+                .then(function (parser) {
+                    expect(parser.filter('thetest1', null, null, null, { meta: 'test' })).to.be.true;
+                    expect(parser.filter('thetest1', null, null, null, {})).to.be.false;
+                    expect(parser.filter('thetest2', null, null, null, { meta: 'test' })).to.be.false;
+                })
+                .then(function () {
+                    return parse('-f thefixture1 --fixture-meta meta=test');
+                })
+                .then(function (parser) {
+                    expect(parser.filter(null, 'thefixture1', null, null, { meta: 'test' })).to.be.true;
+                    expect(parser.filter(null, 'thefixture1', null, null, {})).to.be.false;
+                    expect(parser.filter(null, 'thefixture2', null, null, { meta: 'test' })).to.be.false;
+                })
+                .then(function () {
+                    return parse('-t thetest1 -f thefixture1 --fixture-meta meta=test');
+                })
+                .then(function (parser) {
+                    expect(parser.filter('thetest1', 'thefixture1', null, null, { meta: 'test' })).to.be.true;
+                    expect(parser.filter('thetest1', 'thefixture1', null, null, {})).to.be.false;
+                    expect(parser.filter('thetest1', 'thefixture2', null, null, { meta: 'test' })).to.be.false;
+                    expect(parser.filter('thetest2', 'thefixture1', null, null, { meta: 'test' })).to.be.false;
+                })
+                .then(function () {
+                    return parse('-t thetest1 -f thefixture1 --test-meta test=test --fixture-meta fixture=test');
+                })
+                .then(function (parser) {
+                    expect(parser.filter('thetest1', 'thefixture1', null, { test: 'test' }, { fixture: 'test' })).to.be.true;
+                    expect(parser.filter('thetest1', 'thefixture1', null, {}, { fixture: 'test' })).to.be.false;
+                    expect(parser.filter('thetest1', 'thefixture1', null, { test: 'test' }, {})).to.be.false;
+                    expect(parser.filter('thetest1', 'thefixture2', null, { test: 'test' }, { fixture: 'test' })).to.be.false;
+                    expect(parser.filter('thetest2', 'thefixture1', null, { test: 'test' }, { fixture: 'test' })).to.be.false;
                 });
         });
     });
 
     describe('Ssl options', () => {
         it('Should parse ssl options', () => {
-            return parse('--ssl passphrase=sample;sessionTimeout=1000;rejectUnauthorized=false;=onlyValue;onlyKey=')
+            return parse('param1 --ssl passphrase=sample;sessionTimeout=1000;rejectUnauthorized=false;=onlyValue;onlyKey=')
                 .then(parser => {
                     expect(parser.opts.ssl.passphrase).eql('sample');
                     expect(parser.opts.ssl.sessionTimeout).eql(1000);
@@ -313,68 +402,9 @@ describe('CLI argument parser', function () {
         });
     });
 
-    it('Should accept globs and paths as source files', function () {
-        var cwd = process.cwd();
-
-        var expected = [
-            'test/server/data/file-list/file-1.js',
-            'test/server/data/file-list/file-2.js',
-            'test/server/data/file-list/dir1/dir1-1/file-1-1-1.js',
-            'test/server/data/file-list/dir1/file-1-1.js',
-            'test/server/data/file-list/dir1/file-1-2.js',
-            'test/server/data/file-list/dir1/file-1-3.testcafe',
-            'test/server/data/file-list/dir1/file-1-4.ts',
-            'test/server/data/file-list/dir2/file-2-2.js',
-            'test/server/data/file-list/dir2/file-2-3.js'
-        ];
-
-        expected = expected.map(function (file) {
-            return path.resolve(cwd, file);
-        });
-
-        return parse('chrome ' +
-                     'test/server/data/file-list/file-1.js ' +
-                     path.join(cwd, 'test/server/data/file-list/file-2.js') + ' ' +
-                     'test/server/data/file-list/dir1 ' +
-                     'test/server/data/file-list/dir2/*.js ' +
-                     '!test/server/data/file-list/dir2/file-2-1.js ' +
-                     'test/server/data/file-list/dir3')
-            .then(function (parser) {
-                expect(parser.src).eql(expected);
-            });
-    });
-
-    it('Should use "test" and "tests" dirs if source files are not specified', function () {
-        var workingDir = path.join(__dirname, './data/file-list');
-
-        var expected = [
-            'test/test-dir-file.js',
-            'tests/tests-dir-file.js'
-        ];
-
-        expected = expected.map(function (file) {
-            return path.resolve(workingDir, file);
-        });
-
-        return parse('chrome', workingDir)
-            .then(function (parser) {
-                expect(parser.src).eql(expected);
-            });
-    });
-
-    it('Should parse the screenshot path and ensure it exists', function () {
-        var dir = path.join(tmp.dirSync().name, 'my/screenshots');
-
-        return parse('-s ' + dir)
-            .then(function (parser) {
-                expect(parser.opts.screenshots).eql(dir);
-                expect(fs.existsSync(dir)).to.be.true;
-            });
-    });
-
     it('Should parse reporters and their output file paths and ensure they exist', function () {
-        var cwd      = process.cwd();
-        var filePath = path.join(tmp.dirSync().name, 'my/reports/report.json');
+        const cwd      = process.cwd();
+        const filePath = path.join(tmp.dirSync().name, 'my/reports/report.json');
 
         return parse('-r list,json:' + filePath)
             .then(function (parser) {
@@ -386,10 +416,10 @@ describe('CLI argument parser', function () {
     });
 
     it('Should parse command line arguments', function () {
-        return parse('-r list -S -q -e --hostname myhost --proxy localhost:1234 --proxy-bypass localhost:5678 --qr-code --app run-app --speed 0.5 --debug-on-fail --disable-page-reloads ie test/server/data/file-list/file-1.js')
-            .then(function (parser) {
+        return parse('-r list -S -q -e --hostname myhost --proxy localhost:1234 --proxy-bypass localhost:5678 --qr-code --app run-app --speed 0.5 --debug-on-fail --disable-page-reloads --dev --sf ie test/server/data/file-list/file-1.js')
+            .then(parser => {
                 expect(parser.browsers).eql(['ie']);
-                expect(parser.src).eql([path.resolve(process.cwd(), 'test/server/data/file-list/file-1.js')]);
+                expect(parser.src).eql(['test/server/data/file-list/file-1.js']);
                 expect(parser.opts.reporters[0].name).eql('list');
                 expect(parser.opts.hostname).eql('myhost');
                 expect(parser.opts.app).eql('run-app');
@@ -398,21 +428,24 @@ describe('CLI argument parser', function () {
                 expect(parser.opts.quarantineMode).to.be.ok;
                 expect(parser.opts.skipJsErrors).to.be.ok;
                 expect(parser.opts.disablePageReloads).to.be.ok;
+                expect(parser.opts.dev).to.be.ok;
                 expect(parser.opts.speed).eql(0.5);
                 expect(parser.opts.qrCode).to.be.ok;
                 expect(parser.opts.proxy).to.be.ok;
                 expect(parser.opts.proxyBypass).to.be.ok;
                 expect(parser.opts.debugOnFail).to.be.ok;
+                expect(parser.opts.stopOnFirstFail).to.be.ok;
             });
     });
 
-    it('Should has static CLI', function () {
-        var WARNING          = 'IMPORTANT: Please be sure what you want to change CLI if this test is failing!';
-        var EXPECTED_OPTIONS = [
+    it('Should has static CLI', () => {
+        const WARNING          = 'IMPORTANT: Please be sure what you want to change CLI if this test is failing!';
+        const EXPECTED_OPTIONS = [
             { long: '--version', short: '-v' },
             { long: '--list-browsers', short: '-b' },
             { long: '--reporter', short: '-r' },
             { long: '--screenshots', short: '-s' },
+            { long: '--screenshot-path-pattern', short: '-p' },
             { long: '--screenshots-on-fails', short: '-S' },
             { long: '--quarantine-mode', short: '-q' },
             { long: '--debug-mode', short: '-d' },
@@ -423,6 +456,8 @@ describe('CLI argument parser', function () {
             { long: '--fixture-grep', short: '-F' },
             { long: '--app', short: '-a' },
             { long: '--concurrency', short: '-c' },
+            { long: '--test-meta' },
+            { long: '--fixture-meta' },
             { long: '--debug-on-fail' },
             { long: '--app-init-delay' },
             { long: '--selector-timeout' },
@@ -434,18 +469,22 @@ describe('CLI argument parser', function () {
             { long: '--proxy' },
             { long: '--proxy-bypass' },
             { long: '--disable-page-reloads' },
+            { long: '--dev' },
             { long: '--ssl' },
             { long: '--qr-code' },
+            { long: '--skip-uncaught-errors' },
             { long: '--color' },
-            { long: '--no-color' }
+            { long: '--no-color' },
+            { long: '--stop-on-first-fail', short: '--sf' },
+            { long: '--disable-test-syntax-validation' }
         ];
 
-        var parser  = new CliArgumentParser('');
-        var options = parser.program.options;
+        const parser  = new CliArgumentParser('');
+        const options = parser.program.options;
 
         expect(options.length).eql(EXPECTED_OPTIONS.length, WARNING);
 
-        for (var i = 0; i < EXPECTED_OPTIONS.length; i++)
+        for (let i = 0; i < EXPECTED_OPTIONS.length; i++)
             expect(find(options, EXPECTED_OPTIONS[i])).not.eql(void 0, WARNING);
     });
 });

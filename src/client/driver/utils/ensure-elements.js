@@ -27,7 +27,7 @@ class ElementsRetriever {
     _ensureElement ({ selector, createNotFoundError, createIsInvisibleError, createHasWrongNodeTypeError }) {
         this.ensureElementsPromise = this.ensureElementsPromise
             .then(() => {
-                var selectorExecutor = new SelectorExecutor(selector, this.globalSelectorTimeout, this.ensureElementsStartTime,
+                const selectorExecutor = new SelectorExecutor(selector, this.globalSelectorTimeout, this.ensureElementsStartTime,
                     createNotFoundError, createIsInvisibleError);
 
                 return selectorExecutor.getResult();
@@ -47,7 +47,7 @@ class ElementsRetriever {
 }
 
 export function ensureElements (elementDescriptors, globalSelectorTimeout) {
-    var elementsRetriever = new ElementsRetriever(elementDescriptors, globalSelectorTimeout);
+    const elementsRetriever = new ElementsRetriever(elementDescriptors, globalSelectorTimeout);
 
     return elementsRetriever.getElements();
 }
@@ -55,7 +55,7 @@ export function ensureElements (elementDescriptors, globalSelectorTimeout) {
 export function createElementDescriptor (selector) {
     return {
         selector:                    selector,
-        createNotFoundError:         () => new ActionElementNotFoundError(),
+        createNotFoundError:         fn => new ActionElementNotFoundError(fn),
         createIsInvisibleError:      () => new ActionElementIsInvisibleError(),
         createHasWrongNodeTypeError: nodeDescription => new ActionSelectorMatchesWrongNodeTypeError(nodeDescription)
     };
@@ -64,7 +64,7 @@ export function createElementDescriptor (selector) {
 export function createAdditionalElementDescriptor (selector, elementName) {
     return {
         selector:                    selector,
-        createNotFoundError:         () => new ActionAdditionalElementNotFoundError(elementName),
+        createNotFoundError:         fn => new ActionAdditionalElementNotFoundError(elementName, fn),
         createIsInvisibleError:      () => new ActionAdditionalElementIsInvisibleError(elementName),
         createHasWrongNodeTypeError: nodeDescription => new ActionAdditionalSelectorMatchesWrongNodeTypeError(elementName, nodeDescription)
     };

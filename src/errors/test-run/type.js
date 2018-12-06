@@ -9,12 +9,15 @@ export default {
     uncaughtNonErrorObjectInTestCode:                  'uncaughtNonErrorObjectInTestCode',
     uncaughtErrorInClientFunctionCode:                 'uncaughtErrorInClientFunctionCode',
     uncaughtErrorInCustomDOMPropertyCode:              'uncaughtErrorInCustomDOMPropertyCode',
+    unhandledPromiseRejection:                         'unhandledPromiseRejection',
+    uncaughtException:                                 'uncaughtException',
     missingAwaitError:                                 'missingAwaitError',
     actionIntegerOptionError:                          'actionIntegerOptionError',
     actionPositiveIntegerOptionError:                  'actionPositiveIntegerOptionError',
     actionBooleanOptionError:                          'actionBooleanOptionError',
     actionSpeedOptionError:                            'actionSpeedOptionError',
     actionOptionsTypeError:                            'actionOptionsTypeError',
+    actionBooleanArgumentError:                        'actionBooleanArgumentError',
     actionStringArgumentError:                         'actionStringArgumentError',
     actionNullableStringArgumentError:                 'actionNullableStringArgumentError',
     actionStringOrStringArrayArgumentError:            'actionStringOrStringArrayArgumentError',
@@ -54,9 +57,10 @@ export default {
     externalAssertionLibraryError:                     'externalAssertionLibraryError',
     pageLoadError:                                     'pageLoadError',
     windowDimensionsOverflowError:                     'windowDimensionsOverflowError',
+    forbiddenCharactersInScreenshotPathError:          'forbiddenCharactersInScreenshotPathError',
     invalidElementScreenshotDimensionsError:           'invalidElementScreenshotDimensionsError',
     roleSwitchInRoleInitializerError:                  'roleSwitchInRoleInitializerError',
     assertionExecutableArgumentError:                  'assertionExecutableArgumentError',
-    assertionUnawaitedPromiseError:                    'assertionUnawaitedPromiseError',
-    requestHookConfigureAPIError:                      'requestHookConfigureAPIError'
+    assertionWithoutMethodCallError:                   'assertionWithoutMethodCallError',
+    assertionUnawaitedPromiseError:                    'assertionUnawaitedPromiseError'
 };

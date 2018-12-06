@@ -1,21 +1,22 @@
-var SlConnector         = require('saucelabs-connector');
-var BsConnector         = require('browserstack-connector');
-var Promise             = require('pinkie');
-var caller              = require('caller');
-var path                = require('path');
-var promisifyEvent      = require('promisify-event');
-var createTestCafe      = require('../../lib');
-var browserProviderPool = require('../../lib/browser/provider/pool');
-var BrowserConnection   = require('../../lib/browser/connection');
-var config              = require('./config.js');
-var site                = require('./site');
-var getTestError        = require('./get-test-error.js');
+const SlConnector          = require('saucelabs-connector');
+const BsConnector          = require('browserstack-connector');
+const Promise              = require('pinkie');
+const caller               = require('caller');
+const path                 = require('path');
+const promisifyEvent       = require('promisify-event');
+const createTestCafe       = require('../../lib');
+const browserProviderPool  = require('../../lib/browser/provider/pool');
+const BrowserConnection    = require('../../lib/browser/connection');
+const config               = require('./config.js');
+const site                 = require('./site');
+const getTestError         = require('./get-test-error.js');
+const { createTestStream } = require('./utils/stream');
 
-var testCafe     = null;
-var browsersInfo = null;
+let testCafe     = null;
+let browsersInfo = null;
 
-var connector        = null;
-var browserInstances = null;
+let connector        = null;
+let browserInstances = null;
 
 const WAIT_FOR_FREE_MACHINES_REQUEST_INTERVAL  = 60000;
 const WAIT_FOR_FREE_MACHINES_MAX_ATTEMPT_COUNT = 60;
@@ -26,9 +27,9 @@ const FUNCTIONAL_TESTS_SELECTOR_TIMEOUT  = 200;
 const FUNCTIONAL_TESTS_ASSERTION_TIMEOUT = 1000;
 const FUNCTIONAL_TESTS_PAGE_LOAD_TIMEOUT = 0;
 
-var environment     = config.currentEnvironment;
-var browserProvider = process.env.BROWSER_PROVIDER;
-var isBrowserStack  = browserProvider === config.browserProviderNames.browserstack;
+const environment     = config.currentEnvironment;
+const browserProvider = process.env.BROWSER_PROVIDER;
+const isBrowserStack  = browserProvider === config.browserProviderNames.browserstack;
 
 config.browsers = environment.browsers;
 
@@ -45,7 +46,7 @@ function getBrowserInfo (settings) {
                 .getBrowserInfo(settings.browserName)
                 .then(browserInfo => new BrowserConnection(testCafe.browserConnectionGateway, browserInfo, true));
         })
-        .then(function (connection) {
+        .then(connection => {
             return {
                 settings:   settings,
                 connection: connection
@@ -56,38 +57,38 @@ function getBrowserInfo (settings) {
 function initBrowsersInfo () {
     return Promise
         .all(environment.browsers.map(getBrowserInfo))
-        .then(function (info) {
+        .then(info => {
             browsersInfo = info;
         });
 }
 
 function openRemoteBrowsers () {
-    var Connector = isBrowserStack ? BsConnector : SlConnector;
+    const Connector = isBrowserStack ? BsConnector : SlConnector;
 
     connector = new Connector(environment[browserProvider].username, environment[browserProvider].accessKey,
         { servicePort: config.browserstackConnectorServicePort });
 
     return connector
         .connect()
-        .then(function () {
+        .then(() => {
             return connector.waitForFreeMachines(REQUESTED_MACHINES_COUNT,
                 WAIT_FOR_FREE_MACHINES_REQUEST_INTERVAL, WAIT_FOR_FREE_MACHINES_MAX_ATTEMPT_COUNT);
         })
-        .then(function () {
-            var buildInfo = {
+        .then(() => {
+            const buildInfo = {
                 jobName: environment.jobName,
                 build:   process.env.TRAVIS_BUILD_ID || '',
                 tags:    [process.env.TRAVIS_BRANCH || 'master']
             };
 
-            var openBrowserPromises = browsersInfo.map(function (browserInfo) {
+            const openBrowserPromises = browsersInfo.map(browserInfo => {
                 return connector.startBrowser(browserInfo.settings, browserInfo.connection.url, buildInfo,
                     isBrowserStack ? { openingTimeout: BROWSER_OPENING_TIMEOUT } : null);
             });
 
             return Promise.all(openBrowserPromises);
         })
-        .then(function (browsers) {
+        .then(browsers => {
             browserInstances = browsers;
         });
 }
@@ -102,18 +103,16 @@ function openLocalBrowsers () {
 }
 
 function closeRemoteBrowsers () {
-    var closeBrowserPromises = browserInstances.map(function (browser) {
-        return connector.stopBrowser(isBrowserStack ? browser.id : browser);
-    });
+    const closeBrowserPromises = browserInstances.map(browser => connector.stopBrowser(isBrowserStack ? browser.id : browser));
 
     return Promise.all(closeBrowserPromises)
-        .then(function () {
+        .then(() => {
             return connector.disconnect();
         });
 }
 
 function closeLocalBrowsers () {
-    var closeBrowserPromises = browsersInfo.map(function (browserInfo) {
+    const closeBrowserPromises = browsersInfo.map(browserInfo => {
         browserInfo.connection.close();
 
         return promisifyEvent(browserInfo.connection, 'closed');
@@ -123,20 +122,20 @@ function closeLocalBrowsers () {
 }
 
 before(function () {
-    var mocha = this;
+    const mocha = this;
 
     mocha.timeout(60000);
 
-    return createTestCafe(config.testCafe.hostname, config.testCafe.port1, config.testCafe.port2)
+    const { devMode, retryTestPages } = config;
+
+    return createTestCafe(config.testCafe.hostname, config.testCafe.port1, config.testCafe.port2, null, devMode, retryTestPages)
         .then(function (tc) {
             testCafe = tc;
 
             return initBrowsersInfo();
         })
-        .then(function () {
-            var aliases = browsersInfo.map(function (browser) {
-                return browser.settings.alias;
-            });
+        .then(() => {
+            const aliases = browsersInfo.map(browser => browser.settings.alias);
 
             process.stdout.write('Running tests in browsers: ' + aliases.join(', ') + '\n');
 
@@ -153,36 +152,41 @@ before(function () {
 
             return openLocalBrowsers();
         })
-        .then(function () {
+        .then(() => {
             global.testReport = null;
             global.testCafe   = testCafe;
 
-            global.runTests = function (fixture, testName, opts) {
-                var report             = '';
-                var runner             = testCafe.createRunner();
-                var fixturePath        = typeof fixture !== 'string' || path.isAbsolute(fixture) ? fixture : path.join(path.dirname(caller()), fixture);
-                var skipJsErrors       = opts && opts.skipJsErrors;
-                var disablePageReloads = opts && opts.disablePageReloads;
-                var quarantineMode     = opts && opts.quarantineMode;
-                var selectorTimeout    = opts && opts.selectorTimeout || FUNCTIONAL_TESTS_SELECTOR_TIMEOUT;
-                var assertionTimeout   = opts && opts.assertionTimeout || FUNCTIONAL_TESTS_ASSERTION_TIMEOUT;
-                var pageLoadTimeout    = opts && opts.pageLoadTimeout || FUNCTIONAL_TESTS_PAGE_LOAD_TIMEOUT;
-                var onlyOption         = opts && opts.only;
-                var skipOption         = opts && opts.skip;
-                var screenshotPath     = opts && opts.setScreenshotPath ? '___test-screenshots___' : '';
-                var screenshotsOnFails = opts && opts.screenshotsOnFails;
-                var speed              = opts && opts.speed;
-                var appCommand         = opts && opts.appCommand;
-                var appInitDelay       = opts && opts.appInitDelay;
-                var externalProxyHost  = opts && opts.useProxy;
-                var proxyBypass        = opts && opts.proxyBypass;
-                var customReporters    = opts && opts.reporters;
+            global.runTests = (fixture, testName, opts) => {
+                const stream                      = createTestStream();
+                const runner                      = testCafe.createRunner();
+                const fixturePath                 = typeof fixture !== 'string' ||
+                                                    path.isAbsolute(fixture) ? fixture : path.join(path.dirname(caller()), fixture);
+                const skipJsErrors                = opts && opts.skipJsErrors;
+                const disablePageReloads          = opts && opts.disablePageReloads;
+                const quarantineMode              = opts && opts.quarantineMode;
+                const selectorTimeout             = opts && opts.selectorTimeout || FUNCTIONAL_TESTS_SELECTOR_TIMEOUT;
+                const assertionTimeout            = opts && opts.assertionTimeout || FUNCTIONAL_TESTS_ASSERTION_TIMEOUT;
+                const pageLoadTimeout             = opts && opts.pageLoadTimeout || FUNCTIONAL_TESTS_PAGE_LOAD_TIMEOUT;
+                const onlyOption                  = opts && opts.only;
+                const skipOption                  = opts && opts.skip;
+                const screenshotPath              = opts && opts.setScreenshotPath ? '___test-screenshots___' : '';
+                const screenshotPathPattern       = opts && opts.screenshotPathPattern;
+                const screenshotsOnFails          = opts && opts.screenshotsOnFails;
+                const speed                       = opts && opts.speed;
+                const appCommand                  = opts && opts.appCommand;
+                const appInitDelay                = opts && opts.appInitDelay;
+                const externalProxyHost           = opts && opts.useProxy;
+                const proxyBypass                 = opts && opts.proxyBypass;
+                const customReporters             = opts && opts.reporters;
+                const skipUncaughtErrors          = opts && opts.skipUncaughtErrors;
+                const stopOnFirstFail             = opts && opts.stopOnFirstFail;
+                const disableTestSyntaxValidation = opts && opts.disableTestSyntaxValidation;
 
-                var actualBrowsers = browsersInfo.filter(function (browserInfo) {
-                    var { alias, userAgent } = browserInfo.settings;
+                const actualBrowsers = browsersInfo.filter(browserInfo => {
+                    const { alias, userAgent } = browserInfo.settings;
 
-                    var only = onlyOption ? [alias, userAgent].some(prop => onlyOption.indexOf(prop) > -1) : true;
-                    var skip = skipOption ? [alias, userAgent].some(prop => skipOption.indexOf(prop) > -1) : false;
+                    const only = onlyOption ? [alias, userAgent].some(prop => onlyOption.includes(prop)) : true;
+                    const skip = skipOption ? [alias, userAgent].some(prop => skipOption.includes(prop)) : false;
 
                     return only && !skip;
                 });
@@ -192,12 +196,12 @@ before(function () {
                     return Promise.resolve();
                 }
 
-                var connections = actualBrowsers.map(function (browserInfo) {
+                const connections = actualBrowsers.map(browserInfo => {
                     return browserInfo.connection;
                 });
 
-                var handleError = function (err) {
-                    var shouldFail = opts && opts.shouldFail;
+                const handleError = (err) => {
+                    const shouldFail = opts && opts.shouldFail;
 
                     if (shouldFail && !err)
                         throw new Error('Test should have failed but it succeeded');
@@ -208,39 +212,43 @@ before(function () {
 
                 if (customReporters)
                     customReporters.forEach(r => runner.reporter(r.reporter, r.outStream));
-                else {
-                    runner.reporter('json', {
-                        write: function (data) {
-                            report += data;
-                        },
-
-                        end: function (data) {
-                            report += data;
-                        }
-                    });
-                }
+                else
+                    runner.reporter('json', stream);
 
                 return runner
                     .useProxy(externalProxyHost, proxyBypass)
                     .browsers(connections)
-                    .filter(function (test) {
+
+                    .filter(test => {
                         return testName ? test === testName : true;
                     })
                     .src(fixturePath)
-                    .screenshots(screenshotPath, screenshotsOnFails)
+                    .screenshots(screenshotPath, screenshotsOnFails, screenshotPathPattern)
                     .startApp(appCommand, appInitDelay)
-                    .run({ skipJsErrors, disablePageReloads, quarantineMode, selectorTimeout, assertionTimeout, pageLoadTimeout, speed })
-                    .then(function () {
+                    .run({
+                        skipJsErrors,
+                        disablePageReloads,
+                        quarantineMode,
+                        selectorTimeout,
+                        assertionTimeout,
+                        pageLoadTimeout,
+                        speed,
+                        stopOnFirstFail,
+                        skipUncaughtErrors,
+                        disableTestSyntaxValidation
+                    })
+                    .then(failedCount => {
                         if (customReporters)
                             return;
 
-                        var taskReport = JSON.parse(report);
-                        var errorDescr = getTestError(taskReport, actualBrowsers);
-                        var testReport = taskReport.fixtures.length === 1 ?
+                        const taskReport = JSON.parse(stream.data);
+                        const errorDescr = getTestError(taskReport, actualBrowsers);
+                        const testReport = taskReport.fixtures.length === 1 ?
                             taskReport.fixtures[0].tests[0] :
                             taskReport;
 
-                        testReport.warnings = taskReport.warnings;
+                        testReport.warnings   = taskReport.warnings;
+                        testReport.failedCount = failedCount;
 
                         global.testReport = testReport;
 

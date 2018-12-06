@@ -13,11 +13,11 @@ import cursor from '../../cursor';
 
 const MIN_MOVING_TIME = 25;
 
-var Promise          = hammerhead.Promise;
-var extend           = hammerhead.utils.extend;
-var featureDetection = hammerhead.utils.featureDetection;
-var eventSimulator   = hammerhead.eventSandbox.eventSimulator;
-var focusBlurSandbox = hammerhead.eventSandbox.focusBlur;
+const Promise          = hammerhead.Promise;
+const extend           = hammerhead.utils.extend;
+const featureDetection = hammerhead.utils.featureDetection;
+const eventSimulator   = hammerhead.eventSandbox.eventSimulator;
+const focusBlurSandbox = hammerhead.eventSandbox.focusBlur;
 
 
 export default class DragAutomationBase extends VisibleElementAutomation {
@@ -29,7 +29,9 @@ export default class DragAutomationBase extends VisibleElementAutomation {
         this.offsetX   = mouseOptions.offsetX;
         this.offsetY   = mouseOptions.offsetY;
 
-        this.endPoint  = null;
+        this.endPoint                = null;
+        this.simulateDefaultBehavior = true;
+
         this.downEvent = featureDetection.isTouchDevice ? 'touchstart' : 'mousedown';
         this.upEvent   = featureDetection.isTouchDevice ? 'touchend' : 'mouseup';
 
@@ -44,7 +46,7 @@ export default class DragAutomationBase extends VisibleElementAutomation {
         return cursor
             .leftButtonDown()
             .then(() => {
-                eventSimulator[this.downEvent](eventArgs.element, eventArgs.options);
+                this.simulateDefaultBehavior = eventSimulator[this.downEvent](eventArgs.element, eventArgs.options);
 
                 return this._focus(eventArgs);
             });
@@ -53,7 +55,7 @@ export default class DragAutomationBase extends VisibleElementAutomation {
     _focus (eventArgs) {
         return new Promise(resolve => {
             // NOTE: If the target element is a child of a contentEditable element, we need to call focus for its parent
-            var elementForFocus = domUtils.isContentEditableElement(this.element) ?
+            const elementForFocus = domUtils.isContentEditableElement(this.element) ?
                 contentEditable.findContentEditableParent(this.element) : eventArgs.element;
 
             focusBlurSandbox.focus(elementForFocus, resolve, false, true);
@@ -65,20 +67,21 @@ export default class DragAutomationBase extends VisibleElementAutomation {
     }
 
     _drag () {
-        var { element, offsets, endPoint } = this._getDestination();
+        const { element, offsets, endPoint } = this._getDestination();
 
         this.endPoint = endPoint;
 
-        var dragOptions = new MoveOptions({
-            offsetX:        offsets.offsetX,
-            offsetY:        offsets.offsetY,
-            modifiers:      this.modifiers,
-            speed:          this.speed,
-            minMovingTime:  MIN_MOVING_TIME,
-            holdLeftButton: true
+        const dragOptions = new MoveOptions({
+            offsetX:                 offsets.offsetX,
+            offsetY:                 offsets.offsetY,
+            modifiers:               this.modifiers,
+            speed:                   this.speed,
+            minMovingTime:           MIN_MOVING_TIME,
+            holdLeftButton:          true,
+            skipDefaultDragBehavior: this.simulateDefaultBehavior === false
         }, false);
 
-        var moveAutomation = new MoveAutomation(element, dragOptions);
+        const moveAutomation = new MoveAutomation(element, dragOptions);
 
         return moveAutomation
             .run()
@@ -93,9 +96,9 @@ export default class DragAutomationBase extends VisibleElementAutomation {
         return cursor
             .buttonUp()
             .then(() => {
-                var point      = positionUtils.offsetToClientCoords(this.endPoint);
-                var topElement = null;
-                var options    = extend({
+                const point      = positionUtils.offsetToClientCoords(this.endPoint);
+                let topElement = null;
+                const options    = extend({
                     clientX: point.x,
                     clientY: point.y
                 }, this.modifiers);
@@ -130,7 +133,7 @@ export default class DragAutomationBase extends VisibleElementAutomation {
     }
 
     run (useStrictElementCheck) {
-        var eventArgs = null;
+        let eventArgs = null;
 
         return this
             ._ensureElement(useStrictElementCheck)

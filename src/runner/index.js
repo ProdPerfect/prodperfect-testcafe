@@ -1,7 +1,8 @@
+import { resolve as resolvePath } from 'path';
+import debug from 'debug';
 import Promise from 'pinkie';
 import promisifyEvent from 'promisify-event';
 import mapReverse from 'map-reverse';
-import { resolve as resolvePath } from 'path';
 import { EventEmitter } from 'events';
 import { flattenDeep as flatten, pull as remove } from 'lodash';
 import Bootstrapper from './bootstrapper';
@@ -10,15 +11,19 @@ import Task from './task';
 import { GeneralError } from '../errors/runtime';
 import MESSAGE from '../errors/runtime/message';
 import { assertType, is } from '../errors/runtime/type-assertions';
+import renderForbiddenCharsList from '../errors/render-forbidden-chars-list';
+import checkFilePath from '../utils/check-file-path';
+import { addRunningTest, removeRunningTest, startHandlingTestErrors, stopHandlingTestErrors } from '../utils/handle-errors';
 
 
 const DEFAULT_SELECTOR_TIMEOUT  = 10000;
 const DEFAULT_ASSERTION_TIMEOUT = 3000;
 const DEFAULT_PAGE_LOAD_TIMEOUT = 3000;
 
+const DEBUG_LOGGER = debug('testcafe:runner');
 
 export default class Runner extends EventEmitter {
-    constructor (proxy, browserConnectionGateway) {
+    constructor (proxy, browserConnectionGateway, options = {}) {
         super();
 
         this.proxy               = proxy;
@@ -31,31 +36,47 @@ export default class Runner extends EventEmitter {
             screenshotPath:         null,
             takeScreenshotsOnFails: false,
             recordScreenCapture:    false,
+            screenshotPathPattern:  null,
             skipJsErrors:           false,
             quarantineMode:         false,
             debugMode:              false,
+            retryTestPages:         options.retryTestPages,
             selectorTimeout:        DEFAULT_SELECTOR_TIMEOUT,
             pageLoadTimeout:        DEFAULT_PAGE_LOAD_TIMEOUT
         };
     }
 
-    static async _disposeTaskAndRelatedAssets (task, browserSet, testedApp) {
+
+    static _disposeBrowserSet (browserSet) {
+        return browserSet.dispose().catch(e => DEBUG_LOGGER(e));
+    }
+
+    static _disposeReporters (reporters) {
+        return Promise.all(reporters.map(reporter => reporter.dispose().catch(e => DEBUG_LOGGER(e))));
+    }
+
+    static _disposeTestedApp (testedApp) {
+        return testedApp ? testedApp.kill().catch(e => DEBUG_LOGGER(e)) : Promise.resolve();
+    }
+
+    static async _disposeTaskAndRelatedAssets (task, browserSet, reporters, testedApp) {
         task.abort();
         task.removeAllListeners();
 
-        await Runner._disposeBrowserSetAndTestedApp(browserSet, testedApp);
+        await Runner._disposeAssets(browserSet, reporters, testedApp);
     }
 
-    static async _disposeBrowserSetAndTestedApp (browserSet, testedApp) {
-        await browserSet.dispose();
-
-        if (testedApp)
-            await testedApp.kill();
+    static _disposeAssets (browserSet, reporters, testedApp) {
+        return Promise.all([
+            Runner._disposeBrowserSet(browserSet),
+            Runner._disposeReporters(reporters),
+            Runner._disposeTestedApp(testedApp)
+        ]);
     }
 
     _createCancelablePromise (taskPromise) {
-        var promise           = taskPromise.then(({ completionPromise }) => completionPromise);
-        var removeFromPending = () => remove(this.pendingTaskPromises, promise);
+        const promise           = taskPromise.then(({ completionPromise }) => completionPromise);
+        const removeFromPending = () => remove(this.pendingTaskPromises, promise);
 
         promise
             .then(removeFromPending)
@@ -70,10 +91,19 @@ export default class Runner extends EventEmitter {
     }
 
     // Run task
-    async _getTaskResult (task, browserSet, reporter, testedApp) {
+    _getFailedTestCount (task, reporter) {
+        let failedTestCount = reporter.testCount - reporter.passed;
+
+        if (task.opts.stopOnFirstFail && !!failedTestCount)
+            failedTestCount = 1;
+
+        return failedTestCount;
+    }
+
+    async _getTaskResult (task, browserSet, reporters, testedApp) {
         task.on('browser-job-done', job => browserSet.releaseConnection(job.browserConnection));
 
-        var promises = [
+        const promises = [
             promisifyEvent(task, 'done'),
             promisifyEvent(browserSet, 'error')
         ];
@@ -85,23 +115,32 @@ export default class Runner extends EventEmitter {
             await Promise.race(promises);
         }
         catch (err) {
-            await Runner._disposeTaskAndRelatedAssets(task, browserSet, testedApp);
+            await Runner._disposeTaskAndRelatedAssets(task, browserSet, reporters, testedApp);
 
             throw err;
         }
 
-        await Runner._disposeBrowserSetAndTestedApp(browserSet, testedApp);
+        await Runner._disposeAssets(browserSet, reporters, testedApp);
 
-        return reporter.testCount - reporter.passed;
+        return this._getFailedTestCount(task, reporters[0]);
     }
 
     _runTask (reporterPlugins, browserSet, tests, testedApp) {
-        var completed         = false;
-        var task              = new Task(tests, browserSet.browserConnectionGroups, this.proxy, this.opts);
-        var reporters         = reporterPlugins.map(reporter => new Reporter(reporter.plugin, task, reporter.outStream));
-        var completionPromise = this._getTaskResult(task, browserSet, reporters[0], testedApp);
+        let completed           = false;
+        const task              = new Task(tests, browserSet.browserConnectionGroups, this.proxy, this.opts);
+        const reporters         = reporterPlugins.map(reporter => new Reporter(reporter.plugin, task, reporter.outStream));
+        const completionPromise = this._getTaskResult(task, browserSet, reporters, testedApp);
 
-        var setCompleted = () => {
+        task.once('start', startHandlingTestErrors);
+
+        if (!this.opts.skipUncaughtErrors) {
+            task.on('test-run-start', addRunningTest);
+            task.on('test-run-done', removeRunningTest);
+        }
+
+        task.once('done', stopHandlingTestErrors);
+
+        const setCompleted = () => {
             completed = true;
         };
 
@@ -109,9 +148,9 @@ export default class Runner extends EventEmitter {
             .then(setCompleted)
             .catch(setCompleted);
 
-        var cancelTask = async () => {
+        const cancelTask = async () => {
             if (!completed)
-                await Runner._disposeTaskAndRelatedAssets(task, browserSet, testedApp);
+                await Runner._disposeTaskAndRelatedAssets(task, browserSet, reporters, testedApp);
         };
 
         return { completionPromise, cancelTask };
@@ -122,9 +161,20 @@ export default class Runner extends EventEmitter {
     }
 
     _validateRunOptions () {
-        const concurrency = this.bootstrapper.concurrency;
-        const speed       = this.opts.speed;
-        let proxyBypass   = this.opts.proxyBypass;
+        const concurrency           = this.bootstrapper.concurrency;
+        const speed                 = this.opts.speed;
+        const screenshotPath        = this.opts.screenshotPath;
+        const screenshotPathPattern = this.opts.screenshotPathPattern;
+        let proxyBypass             = this.opts.proxyBypass;
+
+        if (screenshotPath) {
+            this._validateScreenshotPath(screenshotPath, 'screenshots base directory path');
+
+            this.opts.screenshotPath = resolvePath(screenshotPath);
+        }
+
+        if (screenshotPathPattern)
+            this._validateScreenshotPath(screenshotPathPattern, 'screenshots path pattern');
 
         if (typeof speed !== 'number' || isNaN(speed) || speed < 0.01 || speed > 1)
             throw new GeneralError(MESSAGE.invalidSpeedValue);
@@ -148,6 +198,12 @@ export default class Runner extends EventEmitter {
         }
     }
 
+    _validateScreenshotPath (screenshotPath, pathType) {
+        const forbiddenCharsList = checkFilePath(screenshotPath);
+
+        if (forbiddenCharsList.length)
+            throw new GeneralError(MESSAGE.forbiddenCharatersInScreenshotPath, screenshotPath, pathType, renderForbiddenCharsList(forbiddenCharsList));
+    }
 
     // API
     embeddingOptions (opts) {
@@ -158,9 +214,7 @@ export default class Runner extends EventEmitter {
     }
 
     src (...sources) {
-        sources = flatten(sources).map(path => resolvePath(path));
-
-        this.bootstrapper.sources = this.bootstrapper.sources.concat(sources);
+        this.bootstrapper.sources = this.bootstrapper.sources.concat(flatten(sources));
 
         return this;
     }
@@ -199,9 +253,10 @@ export default class Runner extends EventEmitter {
         return this;
     }
 
-    screenshots (path, takeOnFails = false, recordScreenCapture = false) {
+    screenshots (path, takeOnFails = false, pattern = null, recordScreenCapture = false) {
         this.opts.takeScreenshotsOnFails = takeOnFails;
         this.opts.screenshotPath         = path;
+        this.opts.screenshotPathPattern  = pattern;
         this.opts.recordScreenCapture    = recordScreenCapture;
 
         return this;
@@ -214,7 +269,7 @@ export default class Runner extends EventEmitter {
         return this;
     }
 
-    run ({ skipJsErrors, disablePageReloads, quarantineMode, debugMode, selectorTimeout, assertionTimeout, pageLoadTimeout, speed = 1, debugOnFail } = {}) {
+    run ({ skipJsErrors, disablePageReloads, quarantineMode, debugMode, selectorTimeout, assertionTimeout, pageLoadTimeout, speed = 1, debugOnFail, skipUncaughtErrors, stopOnFirstFail, disableTestSyntaxValidation } = {}) {
         this.opts.skipJsErrors       = !!skipJsErrors;
         this.opts.disablePageReloads = !!disablePageReloads;
         this.opts.quarantineMode     = !!quarantineMode;
@@ -223,12 +278,16 @@ export default class Runner extends EventEmitter {
         this.opts.selectorTimeout    = selectorTimeout === void 0 ? DEFAULT_SELECTOR_TIMEOUT : selectorTimeout;
         this.opts.assertionTimeout   = assertionTimeout === void 0 ? DEFAULT_ASSERTION_TIMEOUT : assertionTimeout;
         this.opts.pageLoadTimeout    = pageLoadTimeout === void 0 ? DEFAULT_PAGE_LOAD_TIMEOUT : pageLoadTimeout;
+        this.opts.speed              = speed;
+        this.opts.skipUncaughtErrors = !!skipUncaughtErrors;
+        this.opts.stopOnFirstFail    = !!stopOnFirstFail;
 
-        this.opts.speed = speed;
+        this.bootstrapper.disableTestSyntaxValidation = disableTestSyntaxValidation;
 
-        var runTaskPromise = Promise.resolve()
+        const runTaskPromise = Promise.resolve()
             .then(() => {
                 this._validateRunOptions();
+
                 return this.bootstrapper.createRunnableConfiguration();
             })
             .then(({ reporterPlugins, browserSet, tests, testedApp }) => {
@@ -245,7 +304,7 @@ export default class Runner extends EventEmitter {
         // the pendingTaskPromises array, which leads to shifting indexes
         // towards the beginning. So, we must copy the array in order to iterate it,
         // or we can perform iteration from the end to the beginning.
-        var cancellationPromises = mapReverse(this.pendingTaskPromises, taskPromise => taskPromise.cancel());
+        const cancellationPromises = mapReverse(this.pendingTaskPromises, taskPromise => taskPromise.cancel());
 
         await Promise.all(cancellationPromises);
     }

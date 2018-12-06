@@ -10,19 +10,21 @@ const IDLE_PAGE_LOGO   = read('../../client/browser/idle-page/logo.svg', true);
 
 // Gateway
 export default class BrowserConnectionGateway {
-    constructor (proxy) {
+    constructor (proxy, options = {}) {
         this.connections  = {};
         this.remotesQueue = new RemotesQueue();
         this.domain       = proxy.server1Info.domain;
 
         this.connectUrl = `${this.domain}/browser/connect`;
 
+        this.retryTestPages = options.retryTestPages;
+
         this._registerRoutes(proxy);
     }
 
     _dispatch (url, proxy, handler, method = 'GET') {
         proxy[method](url, (req, res, si, params) => {
-            var connection = this.connections[params.id];
+            const connection = this.connections[params.id];
 
             preventCaching(res);
 
@@ -68,7 +70,7 @@ export default class BrowserConnectionGateway {
             respond500(res, 'The connection is already established.');
 
         else {
-            var userAgent = req.headers['user-agent'];
+            const userAgent = req.headers['user-agent'];
 
             connection.establish(userAgent);
             redirect(res, connection.idleUrl);
@@ -77,7 +79,7 @@ export default class BrowserConnectionGateway {
 
     static onHeartbeat (req, res, connection) {
         if (BrowserConnectionGateway.ensureConnectionReady(res, connection)) {
-            var status = connection.heartbeat();
+            const status = connection.heartbeat();
 
             respondWithJSON(res, status);
         }
@@ -106,7 +108,7 @@ export default class BrowserConnectionGateway {
 
     static async _onStatusRequestCore (req, res, connection, isTestDone) {
         if (BrowserConnectionGateway.ensureConnectionReady(res, connection)) {
-            var status = await connection.getStatus(isTestDone);
+            const status = await connection.getStatus(isTestDone);
 
             respondWithJSON(res, status);
         }
@@ -114,7 +116,7 @@ export default class BrowserConnectionGateway {
 
     static onInitScriptRequest (req, res, connection) {
         if (BrowserConnectionGateway.ensureConnectionReady(res, connection)) {
-            var script = connection.getInitScript();
+            const script = connection.getInitScript();
 
             respondWithJSON(res, script);
         }
@@ -122,7 +124,7 @@ export default class BrowserConnectionGateway {
 
     static onInitScriptResponse (req, res, connection) {
         if (BrowserConnectionGateway.ensureConnectionReady(res, connection)) {
-            var data = '';
+            let data = '';
 
             req.on('data', chunk => {
                 data += chunk;
@@ -139,7 +141,7 @@ export default class BrowserConnectionGateway {
     async _connectNextRemoteBrowser (req, res) {
         preventCaching(res);
 
-        var remoteConnection = await this.remotesQueue.shift();
+        const remoteConnection = await this.remotesQueue.shift();
 
         if (remoteConnection)
             redirect(res, remoteConnection.url);

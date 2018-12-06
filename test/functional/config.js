@@ -1,25 +1,26 @@
-var os = require('os');
+const os = require('os');
 
-var isTravisEnvironment = !!process.env.TRAVIS;
-var hostname            = isTravisEnvironment ? os.hostname() : '127.0.0.1';
+const isTravisEnvironment = !!process.env.TRAVIS;
+const hostname            = isTravisEnvironment ? os.hostname() : '127.0.0.1';
 
-var browserProviderNames = {
+const browserProviderNames = {
     sauceLabs:    'sauceLabs',
     browserstack: 'browserstack'
 };
 
-var testingEnvironmentNames = {
+const testingEnvironmentNames = {
     osXDesktopAndMSEdgeBrowsers: 'osx-desktop-and-ms-edge-browsers',
     mobileBrowsers:              'mobile-browsers',
     localBrowsersIE:             'local-browsers-ie',
     localBrowsersChromeFirefox:  'local-browsers-chrome-firefox',
     localBrowsers:               'local-browsers',
-    localHeadlessBrowsers:       'local-headless-browsers',
+    localHeadlessChrome:         'local-headless-chrome',
+    localHeadlessFirefox:        'local-headless-firefox',
     oldBrowsers:                 'old-browsers',
     legacy:                      'legacy'
 };
 
-var testingEnvironments = {};
+const testingEnvironments = {};
 
 testingEnvironments[testingEnvironmentNames.osXDesktopAndMSEdgeBrowsers] = {
     jobName: 'functional tests - OS X desktop and MS edge browsers',
@@ -29,30 +30,26 @@ testingEnvironments[testingEnvironmentNames.osXDesktopAndMSEdgeBrowsers] = {
         accessKey: process.env.BROWSER_STACK_ACCESS_KEY
     },
 
+    retryTestPages: true,
+
     browsers: [
         {
             os:        'OS X',
-            osVersion: 'Sierra',
+            osVersion: 'HIgh Sierra',
             name:      'safari',
             alias:     'safari'
         },
         {
             os:        'OS X',
-            osVersion: 'Sierra',
+            osVersion: 'High Sierra',
             name:      'chrome',
             alias:     'chrome-osx'
         },
         {
             os:        'OS X',
-            osVersion: 'Sierra',
+            osVersion: 'High Sierra',
             name:      'firefox',
             alias:     'firefox-osx'
-        },
-        {
-            os:        'Windows',
-            osVersion: '10',
-            name:      'edge',
-            alias:     'edge',
         }
     ]
 };
@@ -65,15 +62,9 @@ testingEnvironments[testingEnvironmentNames.mobileBrowsers] = {
         accessKey: process.env.BROWSER_STACK_ACCESS_KEY
     },
 
+    retryTestPages: true,
+
     browsers: [
-        {
-            realMobile: true,
-            os:         'android',
-            osVersion:  '7.1',
-            device:     'Google Pixel',
-            name:       'Android',
-            alias:      'android'
-        },
         {
             realMobile: true,
             os:         'ios',
@@ -119,6 +110,8 @@ testingEnvironments[testingEnvironmentNames.localBrowsers] = {
 testingEnvironments[testingEnvironmentNames.localBrowsersIE] = {
     isLocalBrowsers: true,
 
+    retryTestPages: true,
+
     browsers: [
         {
             platform:    'Windows 10',
@@ -146,8 +139,11 @@ testingEnvironments[testingEnvironmentNames.localBrowsersChromeFirefox] = {
     ]
 };
 
-testingEnvironments[testingEnvironmentNames.localHeadlessBrowsers] = {
-    isLocalBrowsers: true,
+testingEnvironments[testingEnvironmentNames.localHeadlessChrome] = {
+    isLocalBrowsers:    true,
+    isHeadlessBrowsers: true,
+
+    retryTestPages: true,
 
     browsers: [
         {
@@ -155,7 +151,17 @@ testingEnvironments[testingEnvironmentNames.localHeadlessBrowsers] = {
             browserName: 'chrome:headless --no-sandbox',
             userAgent:   'headlesschrome',
             alias:       'chrome'
-        },
+        }
+    ]
+};
+
+testingEnvironments[testingEnvironmentNames.localHeadlessFirefox] = {
+    isLocalBrowsers:    true,
+    isHeadlessBrowsers: true,
+
+    retryTestPages: true,
+
+    browsers: [
         {
             platform:    'Windows 10',
             browserName: 'firefox:headless:disableMultiprocessing=true',
@@ -172,6 +178,8 @@ testingEnvironments[testingEnvironmentNames.oldBrowsers] = {
         accessKey: process.env.SAUCE_ACCESS_KEY_FUNCTIONAL_DESKTOP,
 
     },
+
+    retryTestPages: true,
 
     browsers: [
         {
@@ -225,14 +233,28 @@ module.exports = {
         return this.currentEnvironment.isLocalBrowsers;
     },
 
-    testingEnvironmentNames: testingEnvironmentNames,
-    testingEnvironments:     testingEnvironments,
-    browserProviderNames:    browserProviderNames,
+    get useHeadlessBrowsers () {
+        return this.currentEnvironment.isHeadlessBrowsers;
+    },
+
+    get devMode () {
+        return !!process.env.DEV_MODE;
+    },
+
+    get retryTestPages () {
+        return this.currentEnvironment.retryTestPages;
+    },
+
+    isTravisEnvironment,
+
+    testingEnvironmentNames,
+    testingEnvironments,
+    browserProviderNames,
 
     testCafe: {
         hostname: hostname,
-        port1:    2000,
-        port2:    2001
+        port1:    9000,
+        port2:    9001
     },
 
     site: {
@@ -247,7 +269,7 @@ module.exports = {
         }
     },
 
-    browserstackConnectorServicePort: 4000,
+    browserstackConnectorServicePort: 9200,
 
     browsers: []
 };

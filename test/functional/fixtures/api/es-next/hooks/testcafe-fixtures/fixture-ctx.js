@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import config from '../../../../../config';
 
 
 fixture `Fixture1`
@@ -6,11 +7,11 @@ fixture `Fixture1`
         ctx.prop = 'before';
     })
     .after(ctx => {
-        var items = ctx.prop.split('|');
+        const items = ctx.prop.split('|');
 
         expect(items.filter(item => item === 'before').length).eql(1);
-        expect(items.filter(item => item === 'test1').length).eql(2);
-        expect(items.filter(item => item === 'test2').length).eql(2);
+        expect(items.filter(item => item === 'test1').length).eql(config.currentEnvironment.browsers.length);
+        expect(items.filter(item => item === 'test2').length).eql(config.currentEnvironment.browsers.length);
     });
 
 test('Test1', async t => {

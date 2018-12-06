@@ -1,25 +1,20 @@
-import { resolve, join as pathJoin, dirname } from 'path';
+import { resolve, dirname } from 'path';
 import { Command } from 'commander';
-import Promise from 'pinkie';
 import dedent from 'dedent';
-import isGlob from 'is-glob';
-import globby from 'globby';
 import { readSync as read } from 'read-file-relative';
+import makeDir from 'make-dir';
 import { GeneralError } from '../errors/runtime';
 import MESSAGE from '../errors/runtime/message';
-import Compiler from '../compiler';
 import { assertType, is } from '../errors/runtime/type-assertions';
 import getViewPortWidth from '../utils/get-viewport-width';
 import { wordWrap, splitQuotedText } from '../utils/string';
-import { stat, ensureDir } from '../utils/promisified-functions';
+import { isMatch } from 'lodash';
 import parseSslOptions from './parse-ssl-options';
 
-const REMOTE_ALIAS_RE          = /^remote(?::(\d*))?$/;
-const DEFAULT_TEST_LOOKUP_DIRS = ['test/', 'tests/'];
-const TEST_FILE_GLOB_PATTERN   = `./**/*@(${Compiler.getSupportedTestFileExtensions().join('|')})`;
+const REMOTE_ALIAS_RE = /^remote(?::(\d*))?$/;
 
 const DESCRIPTION = dedent(`
-    In the browser list, you can use browser names (e.g. "ie9", "chrome", etc.) as well as paths to executables.
+    In the browser list, you can use browser names (e.g. "ie", "chrome", etc.) as well as paths to executables.
 
     To run tests against all installed browsers, use the "all" alias.
 
@@ -32,7 +27,6 @@ const DESCRIPTION = dedent(`
 
     More info: https://devexpress.github.io/testcafe/documentation
 `);
-
 
 export default class CLIArgumentParser {
     constructor (cwd) {
@@ -47,10 +41,6 @@ export default class CLIArgumentParser {
         this.opts        = null;
 
         this._describeProgram();
-    }
-
-    static _isInteger (value) {
-        return !isNaN(value) && isFinite(value);
     }
 
     static _parsePortNumber (value) {
@@ -71,13 +61,33 @@ export default class CLIArgumentParser {
         }
     }
 
+    static _optionValueToKeyValue (name, value) {
+        if (value === void 0)
+            return value;
+
+        const keyValue = value.split(',').reduce((obj, pair) => {
+            const [key, val] = pair.split('=');
+
+            if (!key || !val)
+                throw new GeneralError(MESSAGE.optionValueIsNotValidKeyValue, name);
+
+            obj[key] = val;
+            return obj;
+        }, {});
+
+        if (Object.keys(keyValue).length === 0)
+            throw new GeneralError(MESSAGE.optionValueIsNotValidKeyValue, name);
+
+        return keyValue;
+    }
+
     static _getDescription () {
         // NOTE: add empty line to workaround commander-forced indentation on the first line.
         return '\n' + wordWrap(DESCRIPTION, 2, getViewPortWidth(process.stdout));
     }
 
     _describeProgram () {
-        var version = JSON.parse(read('../../package.json')).version;
+        const version = JSON.parse(read('../../package.json')).version;
 
         this.program
 
@@ -89,15 +99,19 @@ export default class CLIArgumentParser {
             .option('-r, --reporter <name[:outputFile][,...]>', 'specify the reporters and optionally files where reports are saved')
             .option('-s, --screenshots <path>', 'enable screenshot capturing and specify the path to save the screenshots to')
             .option('-S, --screenshots-on-fails', 'take a screenshot whenever a test fails')
+            .option('-p, --screenshot-path-pattern <pattern>', 'use patterns to compose screenshot file names and paths: ${BROWSER}, ${BROWSER_VERSION}, ${OS}, etc.')
             .option('-q, --quarantine-mode', 'enable the quarantine mode')
             .option('-d, --debug-mode', 'execute test steps one by one pausing the test after each step')
             .option('-e, --skip-js-errors', 'make tests not fail when a JS error happens on a page')
+            .option('-u, --skip-uncaught-errors', 'ignore uncaught errors and unhandled promise rejections, which occur during test execution')
             .option('-t, --test <name>', 'run only tests with the specified name')
             .option('-T, --test-grep <pattern>', 'run only tests matching the specified pattern')
             .option('-f, --fixture <name>', 'run only fixtures with the specified name')
             .option('-F, --fixture-grep <pattern>', 'run only fixtures matching the specified pattern')
             .option('-a, --app <command>', 'launch the tested app using the specified command before running tests')
             .option('-c, --concurrency <number>', 'run tests concurrently')
+            .option('--test-meta <key=value[,key2=value2,...]>', 'run only tests with matching metadata')
+            .option('--fixture-meta <key=value[,key2=value2,...]>', 'run only fixtures with matching metadata')
             .option('--debug-on-fail', 'pause the test if it fails')
             .option('--app-init-delay <ms>', 'specify how much time it takes for the tested app to initialize')
             .option('--selector-timeout <ms>', 'set the amount of time within which selectors make attempts to obtain a node to be returned')
@@ -107,11 +121,15 @@ export default class CLIArgumentParser {
             .option('--ports <port1,port2>', 'specify custom port numbers')
             .option('--hostname <name>', 'specify the hostname')
             .option('--proxy <host>', 'specify the host of the proxy server')
-            .option('--ssl', 'specify SSL options to run TestCafe proxy server over the HTTPS protocol')
             .option('--proxy-bypass <rules>', 'specify a comma-separated list of rules that define URLs accessed bypassing the proxy server')
+            .option('--ssl <options>', 'specify SSL options to run TestCafe proxy server over the HTTPS protocol')
             .option('--disable-page-reloads', 'disable page reloads between tests')
+            .option('--dev', 'enables mechanisms to log and diagnose errors')
             .option('--qr-code', 'outputs QR-code that repeats URLs used to connect the remote browsers')
+            .option('--sf, --stop-on-first-fail', 'stop an entire test run if any test fails')
+            .option('--disable-test-syntax-validation', 'disables checks for \'test\' and \'fixture\' directives to run dynamically loaded tests')
             .option('--record-screen-capture', 'take screenshots of each action')
+
 
             // NOTE: these options will be handled by chalk internally
             .option('--color', 'force colors in command line')
@@ -119,7 +137,7 @@ export default class CLIArgumentParser {
     }
 
     _filterAndCountRemotes (browser) {
-        var remoteMatch = browser.match(REMOTE_ALIAS_RE);
+        const remoteMatch = browser.match(REMOTE_ALIAS_RE);
 
         if (remoteMatch) {
             this.remoteCount += parseInt(remoteMatch[1], 10) || 1;
@@ -132,8 +150,10 @@ export default class CLIArgumentParser {
     _parseFilteringOptions () {
         this.opts.testGrep    = CLIArgumentParser._optionValueToRegExp('--test-grep', this.opts.testGrep);
         this.opts.fixtureGrep = CLIArgumentParser._optionValueToRegExp('--fixture-grep', this.opts.fixtureGrep);
+        this.opts.testMeta    = CLIArgumentParser._optionValueToKeyValue('--test-meta', this.opts.testMeta);
+        this.opts.fixtureMeta = CLIArgumentParser._optionValueToKeyValue('--fixture-meta', this.opts.fixtureMeta);
 
-        this.filter = (testName, fixtureName) => {
+        this.filter = (testName, fixtureName, fixturePath, testMeta, fixtureMeta) => {
 
             if (this.opts.test && testName !== this.opts.test)
                 return false;
@@ -145,6 +165,12 @@ export default class CLIArgumentParser {
                 return false;
 
             if (this.opts.fixtureGrep && !this.opts.fixtureGrep.test(fixtureName))
+                return false;
+
+            if (this.opts.testMeta && !isMatch(testMeta, this.opts.testMeta))
+                return false;
+
+            if (this.opts.fixtureMeta && !isMatch(fixtureMeta, this.opts.fixtureMeta))
                 return false;
 
             return true;
@@ -205,7 +231,7 @@ export default class CLIArgumentParser {
     }
 
     _parseBrowserList () {
-        var browsersArg = this.program.args[0] || '';
+        const browsersArg = this.program.args[0] || '';
 
         this.browsers = splitQuotedText(browsersArg, ',')
             .filter(browser => browser && this._filterAndCountRemotes(browser));
@@ -213,7 +239,7 @@ export default class CLIArgumentParser {
 
     _parseSslOptions () {
         if (this.opts.ssl)
-            this.opts.ssl = parseSslOptions(this.program.args[0]);
+            this.opts.ssl = parseSslOptions(this.opts.ssl);
     }
 
     async _parseReporters () {
@@ -240,65 +266,13 @@ export default class CLIArgumentParser {
             if (reporter.outFile) {
                 reporter.outFile = resolve(this.cwd, reporter.outFile);
 
-                await ensureDir(dirname(reporter.outFile));
+                await makeDir(dirname(reporter.outFile));
             }
         }
     }
 
-    async _convertDirsToGlobs (fileList) {
-        fileList = await Promise.all(fileList.map(async file => {
-            if (!isGlob(file)) {
-                var absPath  = resolve(this.cwd, file);
-                var fileStat = null;
-
-                try {
-                    fileStat = await stat(absPath);
-                }
-                catch (err) {
-                    return null;
-                }
-
-                if (fileStat.isDirectory())
-                    return pathJoin(file, TEST_FILE_GLOB_PATTERN);
-            }
-
-            return file;
-        }));
-
-        return fileList.filter(file => !!file);
-    }
-
-    async _getDefaultDirs () {
-        return await globby(DEFAULT_TEST_LOOKUP_DIRS, {
-            cwd:    this.cwd,
-            silent: true,
-            nocase: true
-        });
-    }
-
-    async _parseFileList () {
-        var fileList = this.program.args.slice(1);
-
-        if (!fileList.length)
-            fileList = await this._getDefaultDirs();
-
-        fileList = await this._convertDirsToGlobs(fileList);
-
-        this.src = await globby(fileList, {
-            cwd:    this.cwd,
-            silent: true,
-            nodir:  true
-        });
-
-        this.src = this.src.map(file => resolve(this.cwd, file));
-    }
-
-    async _parseScreenshotsPath () {
-        if (this.opts.screenshots) {
-            this.opts.screenshots = resolve(this.cwd, this.opts.screenshots);
-
-            await ensureDir(this.opts.screenshots);
-        }
+    _parseFileList () {
+        this.src = this.program.args.slice(1);
     }
 
     _getProviderName () {
@@ -327,11 +301,8 @@ export default class CLIArgumentParser {
         this._parseBrowserList();
         this._parseConcurrency();
         this._parseSslOptions();
+        this._parseFileList();
 
-        await Promise.all([
-            this._parseScreenshotsPath(),
-            this._parseFileList(),
-            this._parseReporters()
-        ]);
+        await this._parseReporters();
     }
 }

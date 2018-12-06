@@ -918,14 +918,14 @@ interface RequestMock {
      * Specifies requests to intercept
      * @param filter - Specifies which requests should be mocked with a response that follows in the `respond` method.
      */
-    onRequestTo(filter: string | RegExp | object | ((req, res) => boolean)): RequestMock;
+    onRequestTo(filter: string | RegExp | object | ((req: any) => boolean)): RequestMock;
     /**
      * Specifies the mocked response.
      * @param body - The mocked response body.
      * @param statusCode - The response status code.
      * @param headers - Custom headers added to the response in the property-value form.
      */
-    respond(body?: object | string | ((req, res) => any), statusCode?: number, headers?: object): RequestMock;
+    respond(body?: object | string | ((req: any, res: any) => any), statusCode?: number, headers?: object): RequestMock;
 }
 
 interface Request {
@@ -1270,15 +1270,15 @@ interface TestController {
     /**
      * Attaches the hooks during a test run
      *
-     * @param hook - The set of RequestHook subclasses
+     * @param hooks - The set of RequestHook subclasses
      */
-    addRequestHooks(...hook: object[]): TestControllerPromise;
+    addRequestHooks(...hooks: object[]): TestControllerPromise;
     /**
      * Detaches the hooks during a test run
      *
-     * @param hook - The set of RequestHook subclasses
+     * @param hooks - The set of RequestHook subclasses
      */
-    removeRequestHooks(...hook: object[]): TestControllerPromise;
+    removeRequestHooks(...hooks: object[]): TestControllerPromise;
 }
 
 interface TestControllerPromise extends TestController, Promise<any> {
@@ -1570,7 +1570,7 @@ declare module 'testcafe' {
     /**
      * Creates a request logger
      */
-    export function RequestLogger(filter?: string | RegExp | object | ((req, res) => boolean), options?: RequestLoggerOptions): RequestLogger;
+    export function RequestLogger(filter?: string | RegExp | object | ((req: any) => boolean), options?: RequestLoggerOptions): RequestLogger;
 
     /** The RequestHook class used to create a custom HTTP request hook **/
     export class RequestHook {
@@ -1709,9 +1709,9 @@ interface FixtureFn {
     /**
      * Attaches hooks to all tests in the fixture
      *
-     * @param hook - The set of the RequestHook subclasses
+     * @param hooks - The set of the RequestHook subclasses
      */
-    requestHooks(...hook: object[]): this;
+    requestHooks(...hooks: object[]): this;
 }
 
 interface TestFn {
@@ -1774,9 +1774,9 @@ interface TestFn {
     /**
      * Attaches hooks to the test
      *
-     * @param hook - The set of the RequestHook subclasses
+     * @param hooks - The set of the RequestHook subclasses
      */
-    requestHooks(...hook: object[]): this;
+    requestHooks(...hooks: object[]): this;
 }
 
 declare var fixture: FixtureFn;

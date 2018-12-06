@@ -1,21 +1,25 @@
+import Promise from 'pinkie';
 import { find, sortBy } from 'lodash';
+import { writable as isWritableStream } from 'is-stream';
 import ReporterPluginHost from './plugin-host';
 
 export default class Reporter {
     constructor (plugin, task, outStream) {
         this.plugin = new ReporterPluginHost(plugin, outStream);
 
-        this.passed      = 0;
-        this.skipped     = task.tests.filter(test => test.skip).length;
-        this.testCount   = task.tests.length - this.skipped;
-        this.reportQueue = Reporter._createReportQueue(task);
+        this.disposed        = false;
+        this.passed          = 0;
+        this.skipped         = task.tests.filter(test => test.skip).length;
+        this.testCount       = task.tests.length - this.skipped;
+        this.reportQueue     = Reporter._createReportQueue(task);
+        this.stopOnFirstFail = task.opts.stopOnFirstFail;
+        this.outStream       = outStream;
 
         this._assignTaskEventHandlers(task);
     }
 
-    // Static
     static _createReportQueue (task) {
-        var runsPerTest = task.browserConnectionGroups.length;
+        const runsPerTest = task.browserConnectionGroups.length;
 
         return task.tests.map(test => Reporter._createReportItem(test, runsPerTest));
     }
@@ -52,8 +56,8 @@ export default class Reporter {
     }
 
     _shiftReportQueue (reportItem) {
-        var currentFixture = null;
-        var nextReportItem = null;
+        let currentFixture = null;
+        let nextReportItem = null;
 
         while (this.reportQueue.length && this.reportQueue[0].testRunInfo) {
             reportItem     = this.reportQueue.shift();
@@ -73,27 +77,28 @@ export default class Reporter {
 
     _assignTaskEventHandlers (task) {
         task.once('start', () => {
-            var startTime  = new Date();
-            var userAgents = task.browserConnectionGroups.map(group => group[0].userAgent);
-            var first      = this.reportQueue[0];
+            const startTime  = new Date();
+            const userAgents = task.browserConnectionGroups.map(group => group[0].userAgent);
+            const first      = this.reportQueue[0];
 
             this.plugin.reportTaskStart(startTime, userAgents, this.testCount);
             this.plugin.reportFixtureStart(first.fixture.name, first.fixture.path, first.fixture.meta);
         });
 
         task.on('test-run-start', testRun => {
-            var reportItem = this._getReportItemForTestRun(testRun);
+            const reportItem = this._getReportItemForTestRun(testRun);
 
             if (!reportItem.startTime)
                 reportItem.startTime = new Date();
         });
 
         task.on('test-run-done', testRun => {
-            var reportItem = this._getReportItemForTestRun(testRun);
+            const reportItem                    = this._getReportItemForTestRun(testRun);
+            const isTestRunStoppedTaskExecution = !!testRun.errs.length && this.stopOnFirstFail;
 
-            reportItem.pendingRuns--;
-            reportItem.unstable = reportItem.unstable || testRun.unstable;
-            reportItem.errs     = reportItem.errs.concat(testRun.errs);
+            reportItem.pendingRuns = isTestRunStoppedTaskExecution ? 0 : reportItem.pendingRuns - 1;
+            reportItem.unstable    = reportItem.unstable || testRun.unstable;
+            reportItem.errs        = reportItem.errs.concat(testRun.errs);
 
             if (!reportItem.pendingRuns) {
                 if (task.screenshots.hasCapturedFor(testRun.test)) {
@@ -104,9 +109,9 @@ export default class Reporter {
                 if (testRun.quarantine) {
                     reportItem.quarantine = testRun.quarantine.attempts.reduce((result, errors, index) => {
                         const passed              = !errors.length;
-                        const quarantineAttemptID = index + 1;
+                        const quarantineAttempt = index + 1;
 
-                        result[quarantineAttemptID] = { passed };
+                        result[quarantineAttempt] = { passed };
 
                         return result;
                     }, {});
@@ -124,9 +129,26 @@ export default class Reporter {
         });
 
         task.once('done', () => {
-            var endTime = new Date();
+            const endTime = new Date();
 
             this.plugin.reportTaskDone(endTime, this.passed, task.warningLog.messages);
+        });
+    }
+
+    async dispose () {
+        if (this.disposed)
+            return;
+
+        this.disposed = true;
+
+        if (!isWritableStream(this.outStream))
+            return;
+
+        this.outStream.end();
+
+        await new Promise(resolve => {
+            this.outStream.once('finish', resolve);
+            this.outStream.once('error', resolve);
         });
     }
 }

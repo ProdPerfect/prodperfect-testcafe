@@ -41,6 +41,8 @@ import {
 import { WaitCommand, DebugCommand } from '../../test-run/commands/observation';
 import assertRequestHookType from '../request-hooks/assert-type';
 
+const originalThen = Promise.resolve().then;
+
 export default class TestController {
     constructor (testRun) {
         this.testRun               = testRun;
@@ -61,13 +63,12 @@ export default class TestController {
     // t.click('#btn2');          // <-- stores new callsiteWithoutAwait
     // await t2.click('#btn3');   // <-- without check it will set callsiteWithoutAwait = null, so we will lost tracking
     _createExtendedPromise (promise, callsite) {
-        var extendedPromise     = promise.then(identity);
-        var originalThen        = extendedPromise.then;
-        var markCallsiteAwaited = () => this.callsitesWithoutAwait.delete(callsite);
-
+        const extendedPromise     = promise.then(identity);
+        const markCallsiteAwaited = () => this.callsitesWithoutAwait.delete(callsite);
 
         extendedPromise.then = function () {
             markCallsiteAwaited();
+
             return originalThen.apply(this, arguments);
         };
 
@@ -80,22 +81,25 @@ export default class TestController {
     }
 
     _enqueueTask (apiMethodName, createTaskExecutor) {
-        var callsite = getCallsiteForMethod(apiMethodName);
-        var executor = createTaskExecutor(callsite);
+        const callsite = getCallsiteForMethod(apiMethodName);
+        const executor = createTaskExecutor(callsite);
 
-        this.executionChain = this.executionChain.then(executor);
+        this.executionChain.then = originalThen;
+        this.executionChain      = this.executionChain.then(executor);
 
         this.callsitesWithoutAwait.add(callsite);
 
-        return this._createExtendedPromise(this.executionChain, callsite);
+        this.executionChain = this._createExtendedPromise(this.executionChain, callsite);
+
+        return this.executionChain;
     }
 
     _enqueueCommand (apiMethodName, CmdCtor, cmdArgs) {
         return this._enqueueTask(apiMethodName, callsite => {
-            var command = null;
+            let command = null;
 
             try {
-                command = new CmdCtor(cmdArgs);
+                command = new CmdCtor(cmdArgs, this.testRun);
             }
             catch (err) {
                 err.callsite = callsite;
@@ -214,7 +218,7 @@ export default class TestController {
     }
 
     _takeElementScreenshot$ (selector, ...args) {
-        var commandArgs = { selector };
+        const commandArgs = { selector };
 
         if (args[1]) {
             commandArgs.path    = args[0];
@@ -252,8 +256,8 @@ export default class TestController {
         if (!isNullOrUndefined(options))
             options = assign({}, options, { boundTestRun: this });
 
-        var builder  = new ClientFunctionBuilder(fn, options, { instantiation: 'eval', execution: 'eval' });
-        var clientFn = builder.getFunction();
+        const builder  = new ClientFunctionBuilder(fn, options, { instantiation: 'eval', execution: 'eval' });
+        const clientFn = builder.getFunction();
 
         return clientFn();
     }
@@ -265,19 +269,21 @@ export default class TestController {
     }
 
     _getNativeDialogHistory$ () {
-        var callsite = getCallsiteForMethod('getNativeDialogHistory');
+        const callsite = getCallsiteForMethod('getNativeDialogHistory');
 
         return this.testRun.executeCommand(new GetNativeDialogHistoryCommand(), callsite);
     }
 
     _getBrowserConsoleMessages$ () {
-        var callsite = getCallsiteForMethod('getBrowserConsoleMessages');
+        const callsite = getCallsiteForMethod('getBrowserConsoleMessages');
 
         return this.testRun.executeCommand(new GetBrowserConsoleMessagesCommand(), callsite);
     }
 
     _expect$ (actual) {
-        return new Assertion(actual, this);
+        const callsite = getCallsiteForMethod('expect');
+
+        return new Assertion(actual, this, callsite);
     }
 
     _debug$ () {

@@ -9,12 +9,13 @@ import createCommandFromObject from '../../../test-run/commands/from-object';
 export default class RawTestFileCompiler extends TestFileCompilerBase {
     static _createTestFn (commands) {
         return async t => {
-            for (var i = 0; i < commands.length; i++) {
-                var callsite = commands[i] && commands[i].callsite;
-                var command  = null;
+            for (let i = 0; i < commands.length; i++) {
+                const callsite = commands[i] && commands[i].callsite;
+                let command  = null;
 
                 try {
-                    command = createCommandFromObject(commands[i]);
+                    command = createCommandFromObject(commands[i], t.testRun);
+
                     await t.testRun.executeCommand(command, callsite);
                 }
                 catch (err) {
@@ -48,7 +49,7 @@ export default class RawTestFileCompiler extends TestFileCompilerBase {
     }
 
     static _addTest (testFile, src) {
-        var test = new Test(testFile);
+        const test = new Test(testFile);
 
         test(src.name, RawTestFileCompiler._createTestFn(src.commands));
 
@@ -64,7 +65,7 @@ export default class RawTestFileCompiler extends TestFileCompilerBase {
     }
 
     static _addFixture (testFile, src) {
-        var fixture = new Fixture(testFile);
+        const fixture = new Fixture(testFile);
 
         fixture(src.name);
 
@@ -88,8 +89,8 @@ export default class RawTestFileCompiler extends TestFileCompilerBase {
     }
 
     compile (code, filename) {
-        var data     = null;
-        var testFile = new TestFile(filename);
+        let data     = null;
+        const testFile = new TestFile(filename);
 
         try {
             data = JSON.parse(code);

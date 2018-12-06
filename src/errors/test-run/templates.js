@@ -1,6 +1,8 @@
 import dedent from 'dedent';
 import { escape as escapeHtml } from 'lodash';
 import TYPE from './type';
+import renderForbiddenCharsList from '../render-forbidden-chars-list';
+import { replaceLeadingSpacesWithNbsp } from '../../utils/string';
 import TEST_RUN_PHASE from '../../test-run/phase';
 
 const SUBTITLES = {
@@ -16,6 +18,29 @@ const SUBTITLES = {
     [TEST_RUN_PHASE.inBookmarkRestore]:       '<span class="subtitle">Error while restoring configuration after Role switch</span>\n'
 };
 
+function formatSelectorCallstack (apiFnChain, apiFnIndex, viewportWidth) {
+    if (typeof apiFnIndex === 'undefined')
+        return '';
+
+    const emptySpaces    = 10;
+    const ellipsis       = '...)';
+    const availableWidth = viewportWidth - emptySpaces;
+
+    return apiFnChain.map((apiFn, index) => {
+        let formattedApiFn = String.fromCharCode(160);
+
+        formattedApiFn += index === apiFnIndex ? '>' : ' ';
+        formattedApiFn += ' | ';
+        formattedApiFn += index !== 0 ? '  ' : '';
+        formattedApiFn += apiFn;
+
+        if (formattedApiFn.length > availableWidth)
+            return formattedApiFn.substr(0, availableWidth - emptySpaces) + ellipsis;
+
+        return formattedApiFn;
+    }).join('\n');
+}
+
 function markup (err, msgMarkup, opts = {}) {
     msgMarkup = dedent(`
         ${SUBTITLES[err.testRunPhase]}<div class="message">${dedent(msgMarkup)}</div>
@@ -27,13 +52,14 @@ function markup (err, msgMarkup, opts = {}) {
         msgMarkup += `\n<div class="screenshot-info"><strong>Screenshot:</strong> <a class="screenshot-path">${escapeHtml(err.screenshotPath)}</a></div>`;
 
     if (!opts.withoutCallsite) {
-        var callsiteMarkup = err.getCallsiteMarkup();
+        const callsiteMarkup = err.getCallsiteMarkup();
 
         if (callsiteMarkup)
             msgMarkup += `\n\n${callsiteMarkup}`;
     }
 
-    return msgMarkup;
+    return msgMarkup
+        .replace('\t', '&nbsp;'.repeat(4));
 }
 
 export default {
@@ -60,7 +86,7 @@ export default {
     [TYPE.uncaughtErrorOnPage]: err => markup(err, `
         Error on page <a href="${err.pageDestUrl}">${err.pageDestUrl}</a>:
 
-        ${escapeHtml(err.errMsg)}
+        ${replaceLeadingSpacesWithNbsp(escapeHtml(err.errStack))}
     `),
 
     [TYPE.uncaughtErrorInTestCode]: err => markup(err, `
@@ -105,12 +131,28 @@ export default {
         Uncaught ${err.objType} "${escapeHtml(err.objStr)}" was thrown. Throw Error instead.
     `, { withoutCallsite: true }),
 
+    [TYPE.unhandledPromiseRejection]: err => markup(err, `
+        Unhandled promise rejection:
+        
+        ${escapeHtml(err.errMsg)}
+    `, { withoutCallsite: true }),
+
+    [TYPE.uncaughtException]: err => markup(err, `
+        Uncaught exception:
+        
+        ${escapeHtml(err.errMsg)}
+    `, { withoutCallsite: true }),
+
     [TYPE.actionOptionsTypeError]: err => markup(err, `
         Action options is expected to be an object, null or undefined but it was ${err.actualType}.
     `),
 
     [TYPE.actionStringArgumentError]: err => markup(err, `
         The "${err.argumentName}" argument is expected to be a non-empty string, but it was ${err.actualValue}.
+    `),
+
+    [TYPE.actionBooleanArgumentError]: err => markup(err, `
+        The "${err.argumentName}" argument is expected to be a boolean value, but it was ${err.actualValue}.
     `),
 
     [TYPE.actionNullableStringArgumentError]: err => markup(err, `
@@ -137,8 +179,10 @@ export default {
         The "${err.argumentName}" argument is expected to be a positive integer, but it was ${err.actualValue}.
     `),
 
-    [TYPE.actionElementNotFoundError]: err => markup(err, `
+    [TYPE.actionElementNotFoundError]: (err, viewportWidth) => markup(err, `
         The specified selector does not match any element in the DOM tree.
+        
+        ${ formatSelectorCallstack(err.apiFnChain, err.apiFnIndex, viewportWidth) }
     `),
 
     [TYPE.actionElementIsInvisibleError]: err => markup(err, `
@@ -149,8 +193,10 @@ export default {
         The specified selector is expected to match a DOM element, but it matches a ${err.nodeDescription} node.
     `),
 
-    [TYPE.actionAdditionalElementNotFoundError]: err => markup(err, `
+    [TYPE.actionAdditionalElementNotFoundError]: (err, viewportWidth) => markup(err, `
         The specified "${err.argumentName}" does not match any element in the DOM tree.
+        
+        ${ formatSelectorCallstack(err.apiFnChain, err.apiFnIndex, viewportWidth) }
     `),
 
     [TYPE.actionAdditionalElementIsInvisibleError]: err => markup(err, `
@@ -240,12 +286,19 @@ export default {
         ${escapeHtml(err.errMsg)}
     `),
 
-    [TYPE.cantObtainInfoForElementSpecifiedBySelectorError]: err => markup(err, `
+    [TYPE.cantObtainInfoForElementSpecifiedBySelectorError]: (err, viewportWidth) => markup(err, `
         Cannot obtain information about the node because the specified selector does not match any node in the DOM tree.
+        
+        ${ formatSelectorCallstack(err.apiFnChain, err.apiFnIndex, viewportWidth) }
     `),
 
     [TYPE.windowDimensionsOverflowError]: err => markup(err, `
         Unable to resize the window because the specified size exceeds the screen size. On macOS, a window cannot be larger than the screen.
+    `),
+
+    [TYPE.forbiddenCharactersInScreenshotPathError]: err => markup(err, `
+        There are forbidden characters in the "${err.screenshotPath}" screenshot path:
+        ${renderForbiddenCharsList(err.forbiddenCharsList)}
     `),
 
     [TYPE.invalidElementScreenshotDimensionsError]: err => markup(err, `
@@ -262,10 +315,8 @@ export default {
         ${err.errMsg}
     `),
 
-    [TYPE.requestHookConfigureAPIError]: err => markup(err, `
-        There was an error while configuring the request hook:
-        
-        ${err.requestHookName}: ${err.errMsg}
+    [TYPE.assertionWithoutMethodCallError]: err => markup(err, `
+        An assertion method is not specified.
     `),
 
     [TYPE.assertionUnawaitedPromiseError]: err => markup(err, `

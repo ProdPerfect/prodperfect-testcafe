@@ -1,14 +1,15 @@
 import browserTools from 'testcafe-browser-tools';
-import killBrowserProcess from '../../utils/kill-browser-process';
+import { killBrowserProcess } from '../../../../utils/process';
 import BrowserStarter from '../../utils/browser-starter';
 
 
 const browserStarter = new BrowserStarter();
 
 function buildChromeArgs (config, cdpPort, platformArgs, profileDir) {
-    return [`--remote-debugging-port=${cdpPort}`]
+    return []
         .concat(
-            !config.userProfile ? [`--user-data-dir=${profileDir.name}`] : [],
+            cdpPort ? [`--remote-debugging-port=${cdpPort}`] : [],
+            !config.userProfile ? [`--user-data-dir=${profileDir.path}`] : [],
             config.headless ? ['--headless'] : [],
             config.userArgs ? [config.userArgs] : [],
             platformArgs ? [platformArgs] : []

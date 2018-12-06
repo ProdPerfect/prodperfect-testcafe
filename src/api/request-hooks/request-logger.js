@@ -3,7 +3,8 @@ import RequestHook from './hook';
 import { parse as parseUserAgent } from 'useragent';
 import testRunTracker from '../test-run-tracker';
 import ReExecutablePromise from '../../utils/re-executable-promise';
-import { RequestHookConfigureAPIError } from '../../errors/test-run/index';
+import { APIError } from '../../errors/runtime';
+import MESSAGE from '../../errors/runtime/message';
 
 const DEFAULT_OPTIONS = {
     logRequestHeaders:     false,
@@ -14,10 +15,10 @@ const DEFAULT_OPTIONS = {
     stringifyResponseBody: false
 };
 
-class RequestLogger extends RequestHook {
+class RequestLoggerImplementation extends RequestHook {
     constructor (requestFilterRuleInit, options) {
         options = Object.assign({}, DEFAULT_OPTIONS, options);
-        RequestLogger._assertLogOptions(options);
+        RequestLoggerImplementation._assertLogOptions(options);
 
         const configureResponseEventOptions = new ConfigureResponseEventOptions(options.logResponseHeaders, options.logResponseBody);
 
@@ -30,10 +31,10 @@ class RequestLogger extends RequestHook {
 
     static _assertLogOptions (logOptions) {
         if (!logOptions.logRequestBody && logOptions.stringifyRequestBody)
-            throw new RequestHookConfigureAPIError(RequestLogger.name, 'Cannot stringify the request body because it is not logged. Specify { logRequestBody: true } in log options.');
+            throw new APIError('RequestLogger', MESSAGE.requestHookConfigureAPIError, 'RequestLogger', 'Cannot stringify the request body because it is not logged. Specify { logRequestBody: true } in log options.');
 
         if (!logOptions.logResponseBody && logOptions.stringifyResponseBody)
-            throw new RequestHookConfigureAPIError(RequestLogger.name, 'Cannot stringify the response body because it is not logged. Specify { logResponseBody: true } in log options.');
+            throw new APIError('RequestLogger', MESSAGE.requestHookConfigureAPIError, 'RequestLogger', 'Cannot stringify the response body because it is not logged. Specify { logResponseBody: true } in log options.');
     }
 
     onRequest (event) {
@@ -61,8 +62,10 @@ class RequestLogger extends RequestHook {
     onResponse (event) {
         const loggerReq = this._internalRequests[event.requestId];
 
+        // NOTE: If the 'clear' method is called during a long running request,
+        // we should not save a response part - request part has been already removed.
         if (!loggerReq)
-            throw new TypeError(`Cannot find a recorded request with id=${event.id}. This is an internal TestCafe problem. Please contact the TestCafe team and provide an example to reproduce the problem.`);
+            return;
 
         loggerReq.response            = {};
         loggerReq.response.statusCode = event.statusCode;
@@ -70,8 +73,11 @@ class RequestLogger extends RequestHook {
         if (this.options.logResponseHeaders)
             loggerReq.response.headers = Object.assign({}, event.headers);
 
-        if (this.options.logResponseBody)
-            loggerReq.response.body = this.options.stringifyResponseBody ? event.body.toString() : event.body;
+        if (this.options.logResponseBody) {
+            loggerReq.response.body = this.options.stringifyResponseBody && event.body
+                ? event.body.toString()
+                : event.body;
+        }
     }
 
     _prepareInternalRequestInfo () {
@@ -120,6 +126,6 @@ class RequestLogger extends RequestHook {
 }
 
 export default function createRequestLogger (requestFilterRuleInit, logOptions) {
-    return new RequestLogger(requestFilterRuleInit, logOptions);
+    return new RequestLoggerImplementation(requestFilterRuleInit, logOptions);
 }
 

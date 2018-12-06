@@ -1,50 +1,52 @@
-var path                = require('path');
-var expect              = require('chai').expect;
-var request             = require('request');
-var Promise             = require('pinkie');
-var noop                = require('lodash').noop;
-var times               = require('lodash').times;
-var createTestCafe      = require('../../lib/');
-var COMMAND             = require('../../lib/browser/connection/command');
-var Task                = require('../../lib/runner/task');
-var BrowserConnection   = require('../../lib/browser/connection');
-var BrowserSet          = require('../../lib/runner/browser-set');
-var browserProviderPool = require('../../lib/browser/provider/pool');
-var delay               = require('../../lib/utils/delay');
+const path                = require('path');
+const expect              = require('chai').expect;
+const request             = require('request');
+const Promise             = require('pinkie');
+const noop                = require('lodash').noop;
+const times               = require('lodash').times;
+const uniqBy              = require('lodash').uniqBy;
+const createTestCafe      = require('../../lib/');
+const COMMAND             = require('../../lib/browser/connection/command');
+const Task                = require('../../lib/runner/task');
+const BrowserConnection   = require('../../lib/browser/connection');
+const BrowserSet          = require('../../lib/runner/browser-set');
+const browserProviderPool = require('../../lib/browser/provider/pool');
+const delay               = require('../../lib/utils/delay');
 
 
-describe('Runner', function () {
-    var testCafe                  = null;
-    var runner                    = null;
-    var connection                = null;
-    var origRemoteBrowserProvider = null;
+describe('Runner', () => {
+    let testCafe                  = null;
+    let runner                    = null;
+    let connection                = null;
+    let origRemoteBrowserProvider = null;
 
-    var remoteBrowserProviderMock = {
-        openBrowser: function () {
+    const remoteBrowserProviderMock = {
+        openBrowser () {
             return Promise.resolve();
         },
 
-        closeBrowser: function () {
+        closeBrowser () {
             return Promise.resolve();
         }
     };
 
-    // Fixture setup/teardown
-    before(function () {
+    const browserMock = { path: '/non/exist' };
+
+    before(() => {
         return createTestCafe('127.0.0.1', 1335, 1336)
-            .then(function (tc) {
+            .then(tc => {
                 testCafe = tc;
 
                 return browserProviderPool.getProvider('remote');
             })
-            .then(function (remoteBrowserProvider) {
+            .then(remoteBrowserProvider => {
                 origRemoteBrowserProvider = remoteBrowserProvider;
 
                 browserProviderPool.addProvider('remote', remoteBrowserProviderMock);
 
                 return testCafe.createBrowserConnection();
             })
-            .then(function (bc) {
+            .then(bc => {
                 connection = bc;
 
                 connection.establish('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 ' +
@@ -52,29 +54,24 @@ describe('Runner', function () {
             });
     });
 
-    after(function () {
+    after(() => {
         browserProviderPool.addProvider('remote', origRemoteBrowserProvider);
 
         connection.close();
         return testCafe.close();
     });
 
-
-    // Test setup/teardown
-    beforeEach(function () {
+    beforeEach(() => {
         runner = testCafe.createRunner();
     });
 
-
-    describe('.browsers()', function () {
-        it('Should accept target browsers in different forms', function () {
+    describe('.browsers()', () => {
+        it('Should accept target browsers in different forms', () => {
             return Promise
-                .all(times(3, function () {
-                    return testCafe.createBrowserConnection();
-                }))
-                .then(function (connections) {
-                    var browserInfo1 = { path: '/Applications/Google Chrome.app' };
-                    var browserInfo2 = { path: '/Applications/Firefox.app' };
+                .all(times(3, () => testCafe.createBrowserConnection()))
+                .then(connections => {
+                    const browserInfo1 = { path: '/Applications/Google Chrome.app' };
+                    const browserInfo2 = { path: '/Applications/Firefox.app' };
 
                     runner.browsers('ie', 'chrome');
                     runner.browsers('firefox');
@@ -97,91 +94,95 @@ describe('Runner', function () {
 
         });
 
-        it('Should raise an error if browser was not found for the alias', function () {
+        it('Should raise an error if browser was not found for the alias', () => {
             return runner
                 .browsers('browser42')
                 .reporter('list')
                 .src('test/server/data/test-suites/basic/testfile2.js')
                 .run()
-                .then(function () {
+                .then(() => {
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch((err) => {
                     expect(err.message).eql('Unable to find the browser. "browser42" is not a ' +
                                             'browser alias or path to an executable file.');
                 });
         });
 
 
-        it('Should raise an error if an unprefixed path is provided', function () {
+        it('Should raise an error if an unprefixed path is provided', () => {
             return runner
                 .browsers('/Applications/Firefox.app')
                 .reporter('list')
                 .src('test/server/data/test-suites/basic/testfile2.js')
                 .run()
-                .then(function () {
+                .then(() => {
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch(err => {
                     expect(err.message).eql('Unable to find the browser. "/Applications/Firefox.app" is not a ' +
                                             'browser alias or path to an executable file.');
                 });
         });
 
-        it('Should raise an error if browser was not set', function () {
+        it('Should raise an error if browser was not set', () => {
             return runner
                 .reporter('list')
                 .src('test/server/data/test-suites/basic/testfile2.js')
                 .run()
-                .then(function () {
+                .then(() => {
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch(err => {
                     expect(err.message).eql('No browser selected to test against.');
                 });
         });
     });
 
-    describe('.reporter()', function () {
-        it('Should raise an error if reporter was not found for the alias', function () {
+    describe('.reporter()', () => {
+        it('Should raise an error if reporter was not found for the alias', () => {
             return runner
                 .browsers(connection)
                 .reporter('reporter42')
                 .src('test/server/data/test-suites/basic/testfile2.js')
                 .run()
-                .then(function () {
+                .then(() => {
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch(err => {
                     expect(err.message).eql('The provided "reporter42" reporter does not exist. ' +
                                             'Check that you have specified the report format correctly.');
                 });
         });
 
-        it('Should raise an error if several reporters are going to write to the stdout', function () {
+        it('Should raise an error if several reporters are going to write to the stdout', () => {
             return runner
                 .browsers(connection)
                 .reporter('json')
                 .reporter('xunit')
                 .src('test/server/data/test-suites/basic/testfile2.js')
                 .run()
-                .then(function () {
+                .then(() => {
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch(err => {
                     expect(err.message).eql('Multiple reporters attempting to write to stdout: "json, xunit". ' +
                                             'Only one reporter can write to stdout.');
                 });
         });
 
-        it('Should fallback to the default reporter if reporter was not set', function () {
-            runner._runTask = function (reporters) {
-                var reporterPlugin = reporters[0].plugin;
+        it('Should fallback to the default reporter if reporter was not set', () => {
+            const storedRunTaskFn = runner._runTask;
+
+            runner._runTask = reporters => {
+                const reporterPlugin = reporters[0].plugin;
 
                 expect(reporterPlugin.reportFixtureStart).to.be.a('function');
                 expect(reporterPlugin.reportTestDone).to.be.a('function');
                 expect(reporterPlugin.reportTaskStart).to.be.a('function');
                 expect(reporterPlugin.reportTaskDone).to.be.a('function');
+
+                runner._runTask = storedRunTaskFn;
 
                 return Promise.resolve({});
             };
@@ -193,71 +194,143 @@ describe('Runner', function () {
         });
     });
 
-    describe('.src()', function () {
-        it('Should accept source files in different forms', function () {
-            var cwd = process.cwd();
-
-            var expected = [
-                './test1.js',
-                './test2.js',
-                './dir/test3.js',
-                '../test4.js',
-                './test5.js',
-                './test6.js',
-                './test7.js'
-            ];
-
-            expected = expected.map(function (filePath) {
-                return path.resolve(cwd, filePath);
-            });
-
-            runner.src('./test1.js', './test2.js');
-            runner.src('./dir/test3.js');
-            runner.src('../test4.js', ['./test5.js'], ['./test6.js', './test7.js']);
-
-            expect(runner.bootstrapper.sources).eql(expected);
+    describe('.screenshots()', () => {
+        it('Should throw an error when the screenshots base path contains forbidden characters', () => {
+            return runner
+                .browsers(connection)
+                .screenshots('path:with*forbidden|chars')
+                .src('test/server/data/test-suites/basic/testfile2.js')
+                .run()
+                .then(() => {
+                    throw new Error('Promise rejection expected');
+                })
+                .catch(err => {
+                    expect(err.message).eql('There are forbidden characters in the "path:with*forbidden|chars" ' +
+                                            'screenshots base directory path:\n ' +
+                                            '\t":" at index 4\n\t"*" at index 9\n\t"|" at index 19\n');
+                });
         });
 
-        it('Should raise an error if the source was not set', function () {
+        it('Should throw an error when the screenshots pattern contains forbidden characters', () => {
+            return runner
+                .browsers(connection)
+                .screenshots('correct_path', false, '${TEST}:${BROWSER}')
+                .src('test/server/data/test-suites/basic/testfile2.js')
+                .run()
+                .then(() => {
+                    throw new Error('Promise rejection expected');
+                })
+                .catch(err => {
+                    expect(err.message).eql('There are forbidden characters in the "${TEST}:${BROWSER}" ' +
+                                            'screenshots path pattern:\n \t":" at index 7\n');
+                });
+        });
+
+        it('Should allow to use relative paths in the screenshots base path and path patterns', () => {
+            const storedRunTaskFn = runner._runTask;
+
+            runner._runTask = function () {
+                runner._runTask = storedRunTaskFn;
+
+                return Promise.resolve({});
+            };
+
+            return runner
+                .browsers(connection)
+                .screenshots('..', false, '${BROWSER}/./${TEST}')
+                .src('test/server/data/test-suites/basic/testfile2.js')
+                .run();
+        });
+    });
+
+    describe('.src()', () => {
+        it('Should accept source files in different forms', () => {
+            const cwd                           = process.cwd();
+            const storedRunTaskFn               = runner._runTask;
+            const storedGetBrowserConnectionsFn = runner.bootstrapper._getBrowserConnections;
+
+            const expectedFiles = [
+                'test/server/data/test-suites/basic/testfile1.js',
+                'test/server/data/test-suites/basic/testfile2.js',
+                'test/server/data/test-suites/basic/testfile3.js'
+            ].map(file => path.resolve(cwd, file));
+
+            runner.bootstrapper._getBrowserConnections = () => {
+                runner.bootstrapper._getBrowserConnections = storedGetBrowserConnectionsFn;
+
+                return Promise.resolve();
+            };
+
+            runner._runTask = (reporterPlugin, browserSet, tests) => {
+                const actualFiles = uniqBy(tests.map(test => test.testFile.filename));
+
+                expect(actualFiles).eql(expectedFiles);
+
+                runner._runTask = storedRunTaskFn;
+
+                return Promise.resolve({});
+            };
+
+            return runner
+                .browsers(browserMock)
+                .src('test/server/data/test-suites/basic/testfile1.js',
+                    [
+                        'test/server/data/test-suites/basic/*.js',
+                        'test/server/data/test-suites/basic'
+                    ]
+                )
+                .run();
+        });
+
+        it('Should raise an error if the source was not set', () => {
             return runner
                 .browsers(connection)
                 .reporter('list')
                 .run()
-                .then(function () {
+                .then(() => {
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch(err => {
                     expect(err.message).eql('No test file specified.');
+                });
+        });
+
+        it('Should raise an error if the source and imported module have no tests', () => {
+            return runner
+                .browsers(connection)
+                .src(['test/server/data/test-suites/test-as-module/without-tests/testfile.js'])
+                .run()
+                .catch(err => {
+                    expect(err.message).eql('No tests to run. Either the test files contain no tests or the filter function is too restrictive.');
                 });
         });
     });
 
-    describe('.filter()', function () {
-
-        // Test setup
-        beforeEach(function () {
+    describe('.filter()', () => {
+        beforeEach(() => {
             runner
                 .browsers(connection)
                 .reporter('list')
                 .src([
                     'test/server/data/test-suites/basic/testfile1.js',
-                    'test/server/data/test-suites/basic/testfile2.js'
+                    'test/server/data/test-suites/basic/testfile2.js',
+                    'test/server/data/test-suites/filter/meta.js'
                 ]);
         });
 
         function testFilter (filterFn, expectedTestNames) {
+            const storedRunTaskFn = runner._runTask;
+
             runner.filter(filterFn);
 
-            runner._runTask = function (reporterPlugin, browserSet, tests) {
-                var actualTestNames = tests
-                    .map(function (test) {
-                        return test.name;
-                    })
-                    .sort();
+            runner._runTask = (reporterPlugin, browserSet, tests) => {
+                const actualTestNames = tests.map(test =>test.name).sort();
 
                 expectedTestNames = expectedTestNames.sort();
 
                 expect(actualTestNames).eql(expectedTestNames);
+
+                runner._runTask = storedRunTaskFn;
 
                 return Promise.resolve({});
             };
@@ -266,26 +339,25 @@ describe('Runner', function () {
         }
 
 
-        it('Should filter by test name', function () {
-            var filter = function (testName) {
-                return testName.indexOf('Fixture2') < 0;
-            };
+        it('Should filter by test name', () => {
+            const filter = testName => !testName.includes('Fixture2');
 
-            var expectedTestNames = [
+            const expectedTestNames = [
                 'Fixture1Test1',
                 'Fixture1Test2',
-                'Fixture3Test1'
+                'Fixture3Test1',
+                'Fixture4Test1',
+                'Fixture5Test1',
+                'Fixture5Test2'
             ];
 
             return testFilter(filter, expectedTestNames);
         });
 
-        it('Should filter by fixture name', function () {
-            var filter = function (testName, fixtureName) {
-                return fixtureName === 'Fixture1';
-            };
+        it('Should filter by fixture name', () => {
+            const filter = (testName, fixtureName) => fixtureName === 'Fixture1';
 
-            var expectedTestNames = [
+            const expectedTestNames = [
                 'Fixture1Test1',
                 'Fixture1Test2'
             ];
@@ -293,53 +365,66 @@ describe('Runner', function () {
             return testFilter(filter, expectedTestNames);
         });
 
-        it('Should filter by fixture path', function () {
-            var filter = function (testName, fixtureName, fixturePath) {
-                return fixturePath.indexOf('testfile2.js') > -1;
-            };
+        it('Should filter by fixture path', () => {
+            const filter = (testName, fixtureName, fixturePath) => fixturePath.includes('testfile2.js');
 
-            var expectedTestNames = ['Fixture3Test1'];
+            const expectedTestNames = ['Fixture3Test1'];
 
             return testFilter(filter, expectedTestNames);
         });
 
-        it('Should raise an error if all tests are rejected by the filter', function () {
+        it('Should filter by test meta', () => {
+            const filter = (testName, fixtureName, fixturePath, testMeta) => testMeta.meta === 'test';
+
+            const expectedTestNames = ['Fixture5Test2'];
+
+            return testFilter(filter, expectedTestNames);
+        });
+
+        it('Should filter by fixture meta', () => {
+            const filter = (testName, fixtureName, fixturePath, testMeta, fixtureMeta) => fixtureMeta.meta === 'test';
+
+            const expectedTestNames = ['Fixture4Test1'];
+
+            return testFilter(filter, expectedTestNames);
+        });
+
+        it('Should raise an error if all tests are rejected by the filter', () => {
             return runner
-                .filter(function () {
-                    return false;
-                })
+                .filter(() => false)
                 .run()
-                .then(function () {
+                .then(() => {
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch(err => {
                     expect(err.message).eql('No tests to run. Either the test files contain no tests ' +
                                             'or the filter function is too restrictive.');
                 });
         });
     });
 
-    describe('.run()', function () {
-        it('Should not create a new local browser connection if sources are empty', function () {
-            var origGenerateId   = BrowserConnection._generateId;
-            var connectionsCount = 0;
+    describe('.run()', () => {
+        it('Should not create a new remote browser connection if sources are empty', () => {
+            const origGenerateId   = BrowserConnection._generateId;
 
-            BrowserConnection._generateId = function () {
+            let connectionsCount = 0;
+
+            BrowserConnection._generateId = () => {
                 connectionsCount++;
                 return origGenerateId();
             };
 
             return runner
-                .browsers({ path: '/non/exist' })
+                .browsers(connection)
                 .reporter('list')
                 .src([])
                 .run()
-                .then(function () {
+                .then(() => {
                     BrowserConnection._generateId = origGenerateId;
 
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch(err => {
                     BrowserConnection._generateId = origGenerateId;
 
                     expect(err.message).eql('No test file specified.');
@@ -349,33 +434,33 @@ describe('Runner', function () {
         });
 
         it('Should raise an error if the browser connections are not ready', function () {
-            var origGetReadyTimeout = BrowserSet.prototype._getReadyTimeout;
+            const origGetReadyTimeout = BrowserSet.prototype._getReadyTimeout;
 
-            BrowserSet.prototype._getReadyTimeout = function () {
+            BrowserSet.prototype._getReadyTimeout = () => {
                 return Promise.resolve(100);
             };
 
             //NOTE: Restore original in prototype in test timeout callback
-            var testCallback = this.test.callback;
+            const testCallback = this.test.callback;
 
-            this.test.callback = function (err) {
+            this.test.callback = err => {
                 BrowserSet.prototype._getReadyTimeout       = origGetReadyTimeout;
                 testCallback(err);
             };
 
             return testCafe
                 .createBrowserConnection()
-                .then(function (brokenConnection) {
+                .then(brokenConnection => {
                     return runner
                         .browsers(brokenConnection)
                         .reporter('list')
                         .src('test/server/data/test-suites/basic/testfile2.js')
                         .run();
                 })
-                .then(function () {
+                .then(() => {
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch(err => {
                     BrowserSet.prototype._getReadyTimeout = origGetReadyTimeout;
 
                     expect(err.message).eql('Unable to establish one or more of the specified browser connections. ' +
@@ -383,20 +468,20 @@ describe('Runner', function () {
                 });
         });
 
-        it('Should raise an error if browser gets disconnected before bootstrapping', function (done) {
+        it('Should raise an error if browser gets disconnected before bootstrapping', done => {
             testCafe
                 .createBrowserConnection()
-                .then(function (brokenConnection) {
+                .then(brokenConnection => {
                     brokenConnection.establish('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 ' +
                                                '(KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36');
 
-                    brokenConnection.on('error', function () {
+                    brokenConnection.on('error', () => {
                         runner
                             .run()
-                            .then(function () {
+                            .then(() => {
                                 throw new Error('Promise rejection expected');
                             })
-                            .catch(function (err) {
+                            .catch(err => {
                                 expect(err.message).eql('The following browsers disconnected: ' +
                                                         'Chrome 41.0.2227 / Mac OS X 10.10.1. Tests will not be run.');
                             })
@@ -412,13 +497,11 @@ describe('Runner', function () {
                 });
         });
 
-        it('Should raise an error if browser disconnected during bootstrapping', function () {
+        it('Should raise an error if browser disconnected during bootstrapping', () => {
             return Promise
-                .all(times(2, function () {
-                    return testCafe.createBrowserConnection();
-                }))
-                .then(function (connections) {
-                    var run = runner
+                .all(times(2, () => testCafe.createBrowserConnection()))
+                .then(connections => {
+                    const run = runner
                         .browsers(connections[0], connections[1])
                         .reporter('list')
                         .src('test/server/data/test-suites/basic/testfile2.js')
@@ -427,7 +510,7 @@ describe('Runner', function () {
                     connections[0].HEARTBEAT_TIMEOUT = 200;
                     connections[1].HEARTBEAT_TIMEOUT = 200;
 
-                    var options = {
+                    const options = {
                         url:            connections[0].url,
                         followRedirect: false,
                         headers:        {
@@ -440,10 +523,10 @@ describe('Runner', function () {
 
                     return run;
                 })
-                .then(function () {
+                .then(() => {
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch(err => {
                     expect(err.message).eql('The Chrome 41.0.2227 / Mac OS X 10.10.1 browser disconnected. ' +
                                             'This problem may appear when a browser hangs or is closed, ' +
                                             'or due to network issues.');
@@ -451,23 +534,23 @@ describe('Runner', function () {
         });
 
         it('Should raise an error if connection breaks while tests are running', function () {
-            var test = this.test;
+            const test = this.test;
 
             return testCafe
                 .createBrowserConnection()
-                .then(function (brokenConnection) {
+                .then(brokenConnection => {
                     brokenConnection.establish('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 ' +
                                                '(KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36');
 
-                    var run = runner
+                    const run = runner
                         .browsers(brokenConnection)
                         .reporter('json')
                         .src('test/server/data/test-suites/basic/testfile2.js')
                         .run();
 
                     function check () {
-                        setTimeout(function () {
-                            brokenConnection.getStatus().then(function (status) {
+                        setTimeout(() => {
+                            brokenConnection.getStatus().then(status => {
                                 if (test.timedOut || status.cmd === COMMAND.run)
                                     brokenConnection.emit('error', new Error('I have failed :('));
                                 else
@@ -480,21 +563,21 @@ describe('Runner', function () {
 
                     return run;
                 })
-                .then(function () {
+                .then(() => {
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch(err => {
                     expect(err.message).eql('I have failed :(');
                 });
         });
 
         it('Should raise an error if speed option has wrong value', function () {
-            var exceptionCount = 0;
+            let exceptionCount = 0;
 
-            var incorrectSpeedError = function (speed) {
+            const incorrectSpeedError = speed => {
                 return runner
                     .run({ speed })
-                    .catch(function (err) {
+                    .catch(err => {
                         exceptionCount++;
                         expect(err.message).eql('Speed should be a number between 0.01 and 1.');
                     });
@@ -508,14 +591,14 @@ describe('Runner', function () {
                 .then(() => expect(exceptionCount).to.be.eql(4));
         });
 
-        it('Should raise an error if concurrency option has wrong value', function () {
-            var exceptionCount = 0;
+        it('Should raise an error if concurrency option has wrong value', () => {
+            let exceptionCount = 0;
 
-            var incorrectConcurrencyFactorError = function (concurrency) {
+            const incorrectConcurrencyFactorError = concurrency => {
                 return runner
                     .concurrency(concurrency)
                     .run()
-                    .catch(function (err) {
+                    .catch(err => {
                         exceptionCount++;
                         expect(err.message).eql('The concurrency factor should be an integer greater or equal to 1.');
                     });
@@ -529,15 +612,15 @@ describe('Runner', function () {
                 .then(() => expect(exceptionCount).to.be.eql(4));
         });
 
-        it('Should raise an error if proxyBypass option has wrong type', function () {
-            var exceptionCount = 0;
+        it('Should raise an error if proxyBypass option has wrong type', () => {
+            let exceptionCount = 0;
 
-            var expectProxyBypassError = function (proxyBypass, type) {
+            const expectProxyBypassError = (proxyBypass, type) => {
                 runner.opts.proxyBypass = proxyBypass;
 
                 return runner
                     .run()
-                    .catch(function (err) {
+                    .catch(err => {
                         exceptionCount++;
                         expect(err.message).contains('"proxyBypass" argument is expected to be a string or an array, but it was ' + type);
                     });
@@ -550,47 +633,47 @@ describe('Runner', function () {
         });
     });
 
-    describe('Regression', function () {
-        it('Should not have unhandled rejections in runner (GH-825)', function () {
-            var rejectionReason = null;
+    describe('Regression', () => {
+        it('Should not have unhandled rejections in runner (GH-825)', () => {
+            let rejectionReason = null;
 
-            process.on('unhandledRejection', function (reason) {
+            process.on('unhandledRejection', reason => {
                 rejectionReason = reason;
             });
 
             return runner
-                .browsers({ path: '/non/exist' })
+                .browsers(browserMock)
                 .src([])
                 .run()
-                .then(function () {
+                .then(() => {
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch(err => {
                     expect(err).not.eql('Promise rejection expected');
 
                     return delay(100);
                 })
-                .then(function () {
+                .then(() => {
                     expect(rejectionReason).to.be.null;
                 });
         });
     });
 
     //TODO: Convert Task termination tests to functional tests
-    describe('Task termination', function () {
+    describe('Task termination', () => {
         const BROWSER_CLOSING_DELAY = 50;
         const TASK_ACTION_DELAY     = 50;
 
-        var origCreateBrowserJobs = Task.prototype._createBrowserJobs;
-        var origAbort             = Task.prototype.abort;
+        const origCreateBrowserJobs = Task.prototype._createBrowserJobs;
+        const origAbort             = Task.prototype.abort;
 
-        var closeCalled        = 0;
-        var abortCalled        = false;
-        var taskActionCallback = null;
+        let closeCalled        = 0;
+        let abortCalled        = false;
+        let taskActionCallback = null;
 
-        var MockBrowserProvider = {
-            openBrowser: function (browserId, pageUrl) {
-                var options = {
+        const MockBrowserProvider = {
+            openBrowser (browserId, pageUrl) {
+                const options = {
                     url:            pageUrl,
                     followRedirect: false,
                     headers:        {
@@ -604,9 +687,9 @@ describe('Runner', function () {
                 return Promise.resolve();
             },
 
-            closeBrowser: function () {
-                return new Promise(function (resolve) {
-                    setTimeout(function () {
+            closeBrowser () {
+                return new Promise(resolve => {
+                    setTimeout(() => {
                         closeCalled++;
                         resolve();
                     }, BROWSER_CLOSING_DELAY);
@@ -615,23 +698,21 @@ describe('Runner', function () {
         };
 
         function taskDone () {
-            var task = this;
-
-            task.pendingBrowserJobs.forEach(function (job) {
-                task.emit('browser-job-done', job);
+            this.pendingBrowserJobs.forEach(job => {
+                this.emit('browser-job-done', job);
             });
 
-            task.emit('done');
+            this.emit('done');
         }
 
-        beforeEach(function () {
+        beforeEach(() => {
             closeCalled        = 0;
             abortCalled        = false;
             taskActionCallback = taskDone;
 
             runner
                 .src('test/server/data/test-suites/basic/testfile2.js')
-                .reporter(function () {
+                .reporter(() => {
                     return {
                         reportTaskStart:    noop,
                         reportTaskDone:     noop,
@@ -641,46 +722,46 @@ describe('Runner', function () {
                 });
         });
 
-        before(function () {
+        before(() => {
             browserProviderPool.addProvider('mock', MockBrowserProvider);
 
             Task.prototype._createBrowserJobs = function () {
                 setTimeout(taskActionCallback.bind(this), TASK_ACTION_DELAY);
 
-                return this.browserConnectionGroups.map(function (bcGroup) {
+                return this.browserConnectionGroups.map(bcGroup => {
                     return { browserConnections: bcGroup };
                 });
             };
 
-            Task.prototype.abort = function () {
+            Task.prototype.abort = () => {
                 abortCalled = true;
             };
         });
 
-        after(function () {
+        after(() => {
             browserProviderPool.removeProvider('mock');
 
             Task.prototype._createBrowserJobs = origCreateBrowserJobs;
             Task.prototype.abort              = origAbort;
         });
 
-        it('Should not stop the task until local connection browsers are not closed when task done', function () {
+        it('Should not stop the task until local connection browsers are not closed when task done', () => {
             return runner
                 .browsers('mock:browser-alias1', 'mock:browser-alias2')
                 .run()
-                .then(function () {
+                .then(() => {
                     expect(closeCalled).eql(2);
                 });
         });
 
-        it('Should not stop the task until local connection browsers are not closed when connection failed', function () {
+        it('Should not stop the task until local connection browsers are not closed when connection failed', () => {
             return testCafe
                 .createBrowserConnection()
-                .then(function (brokenConnection) {
+                .then(brokenConnection => {
                     brokenConnection.establish('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 ' +
                                                '(KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36');
 
-                    taskActionCallback = function () {
+                    taskActionCallback = () => {
                         brokenConnection.emit('error', new Error('I have failed :('));
                     };
 
@@ -688,22 +769,24 @@ describe('Runner', function () {
                         .browsers(brokenConnection, 'mock:browser-alias')
                         .run();
                 })
-                .then(function () {
+                .then(() => {
                     throw new Error('Promise rejection expected');
                 })
-                .catch(function (err) {
+                .catch(err => {
                     expect(err.message).eql('I have failed :(');
                     expect(closeCalled).eql(1);
                 });
         });
 
-        it('Should not stop the task while connected browser is not in idle state', function () {
-            var IDLE_DELAY       = 50;
-            var remoteConnection = null;
+
+        it('Should not stop the task while connected browser is not in idle state', () => {
+            const IDLE_DELAY = 50;
+
+            let remoteConnection = null;
 
             return testCafe
                 .createBrowserConnection()
-                .then(function (bc) {
+                .then(bc => {
                     remoteConnection = bc;
 
                     remoteConnection.establish('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 ' +
@@ -714,7 +797,7 @@ describe('Runner', function () {
                     taskActionCallback = function () {
                         taskDone.call(this);
 
-                        setTimeout(function () {
+                        setTimeout(() => {
                             remoteConnection.idle = true;
                             remoteConnection.emit('idle');
                         }, IDLE_DELAY);
@@ -724,19 +807,21 @@ describe('Runner', function () {
                         .browsers(remoteConnection)
                         .run();
                 })
-                .then(function () {
+                .then(() => {
                     expect(remoteConnection.idle).to.be.true;
                     remoteConnection.close();
                 });
         });
 
-        it('Should be able to cancel test', function () {
-            var IDLE_DELAY       = 100;
-            var remoteConnection = null;
+
+        it('Should be able to cancel test', () => {
+            const IDLE_DELAY = 100;
+
+            let remoteConnection = null;
 
             return testCafe
                 .createBrowserConnection()
-                .then(function (bc) {
+                .then(bc => {
                     remoteConnection = bc;
 
                     remoteConnection.establish('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 ' +
@@ -745,10 +830,9 @@ describe('Runner', function () {
                     remoteConnection.idle = false;
 
                     // Don't let the test finish by emitting the task's 'done' event
-                    taskActionCallback = function () {
-                    };
+                    taskActionCallback = () => void 0;
 
-                    setTimeout(function () {
+                    setTimeout(() => {
                         remoteConnection.idle = true;
                         remoteConnection.emit('idle');
                     }, IDLE_DELAY);
@@ -758,7 +842,7 @@ describe('Runner', function () {
                         .run()
                         .cancel();
                 })
-                .then(function () {
+                .then(() => {
                     expect(closeCalled).eql(1);
                     expect(abortCalled).to.be.true;
                     expect(remoteConnection.idle).to.be.true;

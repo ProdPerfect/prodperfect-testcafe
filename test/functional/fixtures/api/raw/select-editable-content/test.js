@@ -1,5 +1,5 @@
-var expect                     = require('chai').expect;
-var errorInEachBrowserContains = require('../../../../assertion-helper.js').errorInEachBrowserContains;
+const expect                     = require('chai').expect;
+const errorInEachBrowserContains = require('../../../../assertion-helper.js').errorInEachBrowserContains;
 
 describe('[Raw API] Select editable content', function () {
     it('Should select editable content in div', function () {
@@ -12,7 +12,10 @@ describe('[Raw API] Select editable content', function () {
     it("Should fail if a start element doesn't exist", function () {
         return runTests('./testcafe-fixtures/select-editable-content.testcafe', 'Select editable content in non-existent div', { shouldFail: true })
             .catch(function (errs) {
-                expect(errs[0]).contains('The specified "startSelector" does not match any element in the DOM tree.');
+                expect(errs[0]).contains(
+                    'The specified "startSelector" does not match any element in the DOM tree.' +
+                    '  > | Selector(\'#new-div\')'
+                );
                 expect(errs[0]).contains('[[Select editable content in non-existent div callsite]]');
             });
     });

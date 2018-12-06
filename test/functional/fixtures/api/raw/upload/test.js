@@ -1,5 +1,5 @@
-var expect                     = require('chai').expect;
-var errorInEachBrowserContains = require('../../../../assertion-helper.js').errorInEachBrowserContains;
+const expect                     = require('chai').expect;
+const errorInEachBrowserContains = require('../../../../assertion-helper.js').errorInEachBrowserContains;
 
 
 describe('[Raw API] Upload', function () {
@@ -44,7 +44,10 @@ describe('[Raw API] Upload', function () {
     it('Should clear the upload', function () {
         return runTests('./testcafe-fixtures/upload.testcafe', 'Clear the upload', { shouldFail: true })
             .catch(function (errs) {
-                expect(errs[0]).contains('The specified selector does not match any element in the DOM tree.');
+                expect(errs[0]).contains(
+                    'The specified selector does not match any element in the DOM tree.' +
+                    '  > | Selector(\'#button\')'
+                );
             });
     });
 

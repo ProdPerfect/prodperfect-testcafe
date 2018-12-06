@@ -1,8 +1,8 @@
-var expect = require('chai').expect;
+const expect = require('chai').expect;
 
-var DEFAULT_SELECTOR_TIMEOUT   = 3000;
-var DEFAULT_RUN_OPTIONS        = { selectorTimeout: DEFAULT_SELECTOR_TIMEOUT };
-var DEFAULT_CHROME_RUN_OPTIONS = { only: 'chrome', selectorTimeout: DEFAULT_SELECTOR_TIMEOUT };
+const DEFAULT_SELECTOR_TIMEOUT   = 3000;
+const DEFAULT_RUN_OPTIONS        = { selectorTimeout: DEFAULT_SELECTOR_TIMEOUT };
+const DEFAULT_CHROME_RUN_OPTIONS = { only: 'chrome', selectorTimeout: DEFAULT_SELECTOR_TIMEOUT };
 
 describe('[API] Selector', function () {
     it('Should provide basic properties in HTMLElement snapshots', function () {
@@ -187,7 +187,8 @@ describe('[API] Selector', function () {
             })
                 .catch(function (errs) {
                     expect(errs[0]).contains(
-                        'Cannot obtain information about the node because the specified selector does not match any node in the DOM tree.'
+                        'Cannot obtain information about the node because the specified selector does not match any node in the DOM tree.' +
+                        '  > | Selector(\'#someUnknownElement\')'
                     );
                     expect(errs[0]).contains("> 23 |    await Selector('#someUnknownElement').tagName;");
                 });
@@ -200,7 +201,8 @@ describe('[API] Selector', function () {
             })
                 .catch(function (errs) {
                     expect(errs[0]).contains(
-                        'Cannot obtain information about the node because the specified selector does not match any node in the DOM tree.'
+                        'Cannot obtain information about the node because the specified selector does not match any node in the DOM tree.' +
+                        '  > | Selector(\'#someUnknownElement\')'
                     );
                     expect(errs[0]).contains("> 27 |    await Selector('#someUnknownElement').getStyleProperty('width');");
                 });

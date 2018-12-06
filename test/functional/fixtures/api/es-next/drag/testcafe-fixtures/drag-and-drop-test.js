@@ -4,7 +4,7 @@ fixture `Drag`
     .page `http://localhost:3000/fixtures/api/es-next/drag/pages/drag-and-drop.html`;
 
 test('drag and drop', async t => {
-    var draggable = Selector('#draggable');
+    const draggable = Selector('#draggable');
 
     await t
         .expect(draggable.parent(0).parent(0).id).eql('from')
@@ -49,8 +49,8 @@ test('drag link and image', async t => {
 
 test.page `http://localhost:3000/fixtures/api/es-next/drag/pages/invalid-drag-and-drop.html`
 ('try to drag undraggable', async t => {
-    var undraggable = Selector('#undraggable');
-    var preventDrag = Selector('#prevent-drag');
+    const undraggable = Selector('#undraggable');
+    const preventDrag = Selector('#prevent-drag');
 
     await t
         .dragToElement(undraggable, '#to')
@@ -72,10 +72,79 @@ test.page `http://localhost:3000/fixtures/api/es-next/drag/pages/invalid-drag-an
 
 test.page `http://localhost:3000/fixtures/api/es-next/drag/pages/invalid-drag-and-drop.html`
 ('try to drop to undroppable', async t => {
-    var draggable = Selector('#draggable');
+    const draggable = Selector('#draggable');
 
     await t.expect(draggable.parent(0).id).eql('from')
         .dragToElement(draggable, '#invalid-to')
         .expect(draggable.parent(0).id).eql('from')
         .expect(ClientFunction(() => window.dradendRaised)()).eql(true);
+});
+
+test('Default drag events should not be simulated if the mousedown event was prevented', async t => {
+    const link   = Selector('#link');
+    const target = Selector('#to-display-values');
+
+    const setEventHandlers = ClientFunction(shouldPreventMousedown => {
+        function handler (e) {
+            window[e.type + 'Raised'] = true;
+
+            if (shouldPreventMousedown && e.type === 'mousedown')
+                e.preventDefault();
+        }
+
+        document.ondragstart = handler;
+        document.ondragend   = handler;
+
+        document.onmousedown = handler;
+        document.onmouseup   = handler;
+
+        // NOTE: we should reset the onclick handler because of GH-2640
+        document.onclick = () => {
+        };
+    });
+
+    const getEventsResult = ClientFunction(() => {
+        return {
+            dragstart: window.dragstartRaised,
+            dragend:   window.dragendRaised,
+
+            mousedown: window.mousedownRaised,
+            mouseup:   window.mouseupRaised
+        };
+    });
+
+    const clearEventsResult = ClientFunction(() => {
+        window.dragstartRaised = false;
+        window.dragendRaised   = false;
+
+        window.mousedownRaised = false;
+        window.mouseupRaised   = false;
+    });
+
+
+    await clearEventsResult();
+    await setEventHandlers();
+
+    await t
+        .dragToElement(link, target)
+        .expect(getEventsResult()).eql({
+            dragstart: true,
+            dragend:   true,
+
+            mousedown: true,
+            mouseup:   false
+        });
+
+    await clearEventsResult();
+    await setEventHandlers(true);
+
+    await t
+        .dragToElement(link, target)
+        .expect(getEventsResult()).eql({
+            dragstart: false,
+            dragend:   false,
+
+            mousedown: true,
+            mouseup:   true
+        });
 });

@@ -6,12 +6,13 @@ checked: true
 ---
 # Take Screenshot
 
-This topic describes how you can take screenshots of the tested page.
+This topic describes how to take screenshots of the tested page.
 
-**Note**: these actions require a [ICCCM/EWMH-compliant window manager](https://en.wikipedia.org/wiki/Comparison_of_X_window_managers) on Linux.
+> Important! Screenshot actions are not supported when you run tests in [remote browsers](../../using-testcafe/common-concepts/browsers/browser-support.md#browsers-on-remote-devices).
 
-> Important! If the screenshot directory is not specified with the [runner.screenshots](../../using-testcafe/programming-interface/runner.md#screenshots) API method or the [screenshots](../../using-testcafe/command-line-interface.md#-s-path---screenshots-path) command line option,
-> the screenshot actions are ignored.
+**Note**: these actions require .NET 4.0 or newer installed on Windows machines and an [ICCCM/EWMH-compliant window manager](https://en.wikipedia.org/wiki/Comparison_of_X_window_managers) on Linux.
+
+> Important! Screenshot actions are ignored if the screenshot directory is not specified with the [runner.screenshots](../../using-testcafe/programming-interface/runner.md#screenshots) API method or the [--screenshots](../../using-testcafe/command-line-interface.md#-s-path---screenshots-path) command line option.
 
 ## Take a Screenshot of the Entire Page
 
@@ -21,14 +22,9 @@ t.takeScreenshot( [path] )
 
 Parameter           | Type   | Description
 ------------------- | ------ | -----------------------------------------------------------------------------------------------------
-`path`&#160;*(optional)* | String | The relative path and the name of the screenshot file to be created. Resolved from the *screenshot directory* specified by using the [runner.screenshots](../../using-testcafe/programming-interface/runner.md#screenshots) API method or the [screenshots](../../using-testcafe/command-line-interface.md#-s-path---screenshots-path) command line option.
+`path`&#160;*(optional)* | String | The screenshot file's relative path and name. The path is relative to the base directory specified by the [runner.screenshots](../../using-testcafe/programming-interface/runner.md#screenshots) API method or the [screenshots](../../using-testcafe/command-line-interface.md#-s-path---screenshots-path) command line option. This path overrides the relative path the default or custom [path patterns](../../using-testcafe/command-line-interface.md#path-patterns) specify.
 
-By default, the path to which screenshots are saved is specified as:
-
-* `{currentDate}\test-{testIndex}\{userAgent}\{screenshotIndex}.png` if the [quarantine mode](../../using-testcafe/command-line-interface.md#-q---quarantine-mode) is disabled;
-* `{currentDate}\test-{testIndex}\run-{quarantineAttempt}\{userAgent}\{screenshotIndex}.png` if the [quarantine mode](../../using-testcafe/command-line-interface.md#-q---quarantine-mode) is enabled.
-
-The following example shows how to use the `t.takeScreenshot` action.
+The following example shows how to use the `t.takeScreenshot` action:
 
 ```js
 import { Selector } from 'testcafe';
@@ -54,9 +50,9 @@ Takes a screenshot of the specified page element.
 
 Parameter                | Type   | Description
 ------------------------ | ------ | -----------------------------------------------------------------------------------------------------
-`selector`               | Function &#124; String &#124; Selector &#124; Snapshot &#124; Promise | Identifies the webpage element whose screenshot will be taken. See [Selecting Target Elements](README.md#selecting-target-elements).
-`path`&#160;*(optional)* | String | The relative path and the name of the screenshot file to be created. Resolved from the *screenshot directory* specified by using the [runner.screenshots](../../using-testcafe/programming-interface/runner.md#screenshots) API method or the [screenshots](../../using-testcafe/command-line-interface.md#-s-path---screenshots-path) command line option.
-`options`&#160;*(optional)*   | Object | Options that define how the screenshot will be taken. See details below.
+`selector`               | Function &#124; String &#124; Selector &#124; Snapshot &#124; Promise | Identifies the webpage element whose screenshot should be taken. See [Selecting Target Elements](README.md#selecting-target-elements).
+`path`&#160;*(optional)* | String | The screenshot file's relative path and name. The path is relative to the root directory specified by using the [runner.screenshots](../../using-testcafe/programming-interface/runner.md#screenshots) API method or the [screenshots](../../using-testcafe/command-line-interface.md#-s-path---screenshots-path) command line option. This path overrides the relative path the default or custom [path patterns](../../using-testcafe/command-line-interface.md#path-patterns) specify.
+`options`&#160;*(optional)*   | Object | Options that define how the screenshot is taken. See details below.
 
 ```js
 import { Selector } from 'testcafe';
@@ -72,16 +68,11 @@ test('Take a screenshot of a fieldset', async t => {
 });
 ```
 
-By default, the path to which screenshots are saved is specified as:
-
-* `{currentDate}\test-{testIndex}\{userAgent}\{screenshotIndex}.png` if the [quarantine mode](../../using-testcafe/command-line-interface.md#-q---quarantine-mode) is disabled;
-* `{currentDate}\test-{testIndex}\run-{quarantineAttempt}\{userAgent}\{screenshotIndex}.png` if the [quarantine mode](../../using-testcafe/command-line-interface.md#-q---quarantine-mode) is enabled.
-
-The `options` object contains the following properties.
+The `options` object contains the following properties:
 
 Property        | Type | Description   | Default
 --------------- | ---- | ------------- | ----------
-`scrollTargetX`,&#160;`scrollTargetY` | Number | If the target element is too big to fit into the browser window, the page will be scrolled to put this point to the center of the viewport. The coordinates of this point are calculated relative to the target element. If the numbers are positive, the point is positioned relative to the top-left corner of the element. If the numbers are negative, the point is positioned relative to the bottom-right corner. If the target element fits into the browser window, these properties have no effect. | The center of the element. If the `crop` rectangle is specified, its center. If the `crop` rectangle is larger than the viewport, the center of the viewport.
+`scrollTargetX`,&#160;`scrollTargetY` | Number | If the target element is too big to fit into the browser window, the page is scrolled to put this point to the center of the viewport. The coordinates of this point are calculated relative to the target element. If the numbers are positive, the point is positioned relative to the top-left corner of the element. If the numbers are negative, the point is positioned relative to the bottom-right corner. If the target element fits into the browser window, these properties have no effect. | The center of the element. If the `crop` rectangle is specified, its center. If the `crop` rectangle is larger than the viewport, the center of the viewport.
 `includeMargins` | Boolean | Specifies whether to include target element's margins in the screenshot. When it is enabled, the `scrollTargetX`, `scrollTargetY` and `crop` rectangle coordinates are calculated from the corners where top and left (or bottom and right) margins intersect. | `false`
 `includeBorders` | Boolean | Specifies whether to include target element's borders in the screenshot. When it is enabled, the `scrollTargetX`, `scrollTargetY` and `crop` rectangle coordinates are calculated from the corners where top and left (or bottom and right) internal edges of the element intersect. | `true`
 `includePaddings` | Boolean | Specifies whether to include target element's paddings in the screenshot. When it is enabled, the `scrollTargetX`, `scrollTargetY` and `crop` rectangle coordinates are calculated from the corners where top and left (or bottom and right) edges of the element's content area intersect. | `true`

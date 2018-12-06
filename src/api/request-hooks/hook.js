@@ -6,6 +6,8 @@ export default class RequestHook {
         this.requestFilterRules              = this._prepareRequestFilterRules(requestFilterRules);
         this._instantiatedRequestFilterRules = [];
         this.responseEventConfigureOpts      = responseEventConfigureOpts;
+
+        this.warningLog = null;
     }
 
     _prepareRequestFilterRules (rules) {
@@ -16,11 +18,12 @@ export default class RequestHook {
     }
 
     _instantiateRequestFilterRules () {
+        this._instantiatedRequestFilterRules = [];
+
         this.requestFilterRules.forEach(rule => {
-            if (rule instanceof RequestFilterRule)
-                this._instantiatedRequestFilterRules.push(rule);
-            else
-                this._instantiatedRequestFilterRules.push(new RequestFilterRule(rule));
+            const instantiatedRule = rule instanceof RequestFilterRule ? rule : new RequestFilterRule(rule);
+
+            this._instantiatedRequestFilterRules.push(instantiatedRule);
         });
     }
 

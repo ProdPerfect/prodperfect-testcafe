@@ -1,11 +1,11 @@
 import Promise from 'pinkie';
 import { flattenDeep as flatten, find, chunk, uniq } from 'lodash';
 import stripBom from 'strip-bom';
-import sourceMapSupport from 'source-map-support';
 import { Compiler as LegacyTestFileCompiler } from 'testcafe-legacy-api';
 import hammerhead from 'testcafe-hammerhead';
 import EsNextTestFileCompiler from './test-file/formats/es-next/compiler';
 import TypeScriptTestFileCompiler from './test-file/formats/typescript/compiler';
+import CoffeeScriptTestFileCompiler from './test-file/formats/coffeescript/compiler';
 import RawTestFileCompiler from './test-file/formats/raw';
 import { readFile } from '../utils/promisified-functions';
 import { GeneralError } from '../errors/runtime';
@@ -14,34 +14,27 @@ import MESSAGE from '../errors/runtime/message';
 
 const SOURCE_CHUNK_LENGTH = 1000;
 
-var testFileCompilers = [
+const testFileCompilers = [
     new LegacyTestFileCompiler(hammerhead.processScript),
     new EsNextTestFileCompiler(),
     new TypeScriptTestFileCompiler(),
+    new CoffeeScriptTestFileCompiler(),
     new RawTestFileCompiler()
 ];
 
 export default class Compiler {
-    constructor (sources) {
+    constructor (sources, disableTestSyntaxValidation) {
         this.sources = sources;
 
-        Compiler._setupSourceMapsSupport();
+        this.disableTestSyntaxValidation = disableTestSyntaxValidation;
     }
 
     static getSupportedTestFileExtensions () {
         return uniq(testFileCompilers.map(c => c.getSupportedExtension()));
     }
 
-    static _setupSourceMapsSupport () {
-        sourceMapSupport.install({
-            hookRequire:              true,
-            handleUncaughtExceptions: false,
-            environment:              'node'
-        });
-    }
-
     async _compileTestFile (filename) {
-        var code = null;
+        let code = null;
 
         try {
             code = await readFile(filename);
@@ -52,15 +45,15 @@ export default class Compiler {
 
         code = stripBom(code).toString();
 
-        var compiler = find(testFileCompilers, c => c.canCompile(code, filename));
+        const compiler = find(testFileCompilers, c => c.canCompile(code, filename, this.disableTestSyntaxValidation));
 
         return compiler ? await compiler.compile(code, filename) : null;
     }
 
     async getTests () {
-        var sourceChunks = chunk(this.sources, SOURCE_CHUNK_LENGTH);
-        var tests        = [];
-        var compileUnits = [];
+        const sourceChunks = chunk(this.sources, SOURCE_CHUNK_LENGTH);
+        let tests        = [];
+        let compileUnits = [];
 
         // NOTE: split sources into chunks because the fs module can't read all files
         // simultaneously if the number of them is too large (several thousands).

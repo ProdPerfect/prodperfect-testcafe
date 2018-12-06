@@ -13,7 +13,7 @@ Plugins for React and Vue.js, TestCafe Docker image, support for Internet access
 
 ### New calls to selector's withText method no longer override previous calls
 
-We have changed the way the [withText](https://devexpress.github.io/testcafe/documentation/test-api/selecting-page-elements/selectors.html#withtext)
+We have changed the way the [withText](https://devexpress.github.io/testcafe/documentation/test-api/selecting-page-elements/selectors/functional-style-selectors.html#withtext)
 method behaves when it is called in a chain.
 
 ```js
@@ -103,7 +103,7 @@ docker pull testcafe/testcafe
 docker run -v //user/tests:/tests -it testcafe/testcafe firefox tests/**/*.js
 ```
 
-To learn more, see [Using TestCafe Docker Image](https://devexpress.github.io/testcafe/documentation/using-testcafe/installing-testcafe.html#using-testcafe-docker-image)
+To learn more, see [Using TestCafe Docker Image](https://devexpress.github.io/testcafe/documentation/using-testcafe/using-testcafe-docker-image.html)
 
 ### ⚙ Support for Internet access proxies ([#1206](https://github.com/DevExpress/testcafe/issues/1206))
 

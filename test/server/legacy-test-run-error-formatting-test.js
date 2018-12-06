@@ -1,36 +1,23 @@
-var expect             = require('chai').expect;
-var read               = require('read-file-relative').readSync;
-var remove             = require('lodash').pull;
-var ReporterPluginHost = require('../../lib/reporter/plugin-host');
-var testCafeLegacyApi  = require('testcafe-legacy-api');
+const expect               = require('chai').expect;
+const read                 = require('read-file-relative').readSync;
+const remove               = require('lodash').pull;
+const ReporterPluginHost   = require('../../lib/reporter/plugin-host');
+const testCafeLegacyApi    = require('testcafe-legacy-api');
+const { createTestStream } = require('../functional/utils/stream');
 
-var TEST_RUN_ERROR_TYPE                  = testCafeLegacyApi.TEST_RUN_ERROR_TYPE;
-var LegacyTestRunErrorFormattableAdapter = testCafeLegacyApi.TestRunErrorFormattableAdapter;
+const TEST_RUN_ERROR_TYPE                  = testCafeLegacyApi.TEST_RUN_ERROR_TYPE;
+const LegacyTestRunErrorFormattableAdapter = testCafeLegacyApi.TestRunErrorFormattableAdapter;
 
+const untestedErrorTypes = Object.keys(TEST_RUN_ERROR_TYPE).map(key => TEST_RUN_ERROR_TYPE[key]);
 
-var untestedErrorTypes = Object.keys(TEST_RUN_ERROR_TYPE).map(function (key) {
-    return TEST_RUN_ERROR_TYPE[key];
-});
-
-var userAgentMock = 'Chrome 15.0.874 / Mac OS X 10.8.1';
-
-// Output stream and errorDecorator mocks
-function createOutStreamMock () {
-    return {
-        data: '',
-
-        write: function (text) {
-            this.data += text;
-        }
-    };
-}
+const userAgentMock = 'Chrome 15.0.874 / Mac OS X 10.8.1';
 
 function assertErrorMessage (file, err, callsite) {
-    var screenshotPath = '/unix/path/with/<tag>';
-    var outStreamMock  = createOutStreamMock();
-    var plugin         = new ReporterPluginHost({}, outStreamMock);
+    const screenshotPath = '/unix/path/with/<tag>';
+    const outStreamMock  = createTestStream();
+    const plugin         = new ReporterPluginHost({}, outStreamMock);
 
-    var errAdapter = new LegacyTestRunErrorFormattableAdapter(err, {
+    const errAdapter = new LegacyTestRunErrorFormattableAdapter(err, {
         userAgent:      userAgentMock,
         screenshotPath: screenshotPath,
         callsite:       callsite
@@ -40,7 +27,7 @@ function assertErrorMessage (file, err, callsite) {
         .useWordWrap(true)
         .write(plugin.formatError(errAdapter));
 
-    var expectedMsg = read('./data/expected-legacy-test-run-errors/' + file)
+    const expectedMsg = read('./data/expected-legacy-test-run-errors/' + file)
         .replace(/(\r\n)/gm, '\n')
         .trim();
 
@@ -53,7 +40,7 @@ function assertErrorMessage (file, err, callsite) {
 describe('Legacy error formatting', function () {
     describe('Assertions', function () {
         it('Should format "eq" assertion message', function () {
-            var err = {
+            const err = {
                 stepName:  'Step with <tag>',
                 expected:  '"<another-tag>"',
                 actual:    '"<some-tag>"',
@@ -71,7 +58,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "notEq" assertion message', function () {
-            var err = {
+            const err = {
                 stepName: 'Step with <tag>',
                 actual:   '"<test>"',
                 expected: '"<test>"',
@@ -83,7 +70,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "ok" assertion message', function () {
-            var err = {
+            const err = {
                 stepName: 'Step with <tag>',
                 actual:   'false',
                 type:     TEST_RUN_ERROR_TYPE.okAssertion,
@@ -94,7 +81,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "notOk" assertion message', function () {
-            var err = {
+            const err = {
                 stepName: 'Step with <tag>',
                 actual:   '"<test>"',
                 type:     TEST_RUN_ERROR_TYPE.notOkAssertion,
@@ -107,7 +94,7 @@ describe('Legacy error formatting', function () {
 
     describe('Errors', function () {
         it('Should format "iframeLoadingTimeout" error message', function () {
-            var err = {
+            const err = {
                 type: TEST_RUN_ERROR_TYPE.iframeLoadingTimeout
             };
 
@@ -115,7 +102,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "inIFrameTargetLoadingTimeout" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.inIFrameTargetLoadingTimeout,
                 stepName: 'Step with <tag>'
             };
@@ -124,7 +111,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "uncaughtJSError" error message', function () {
-            var err = {
+            const err = {
                 type:        TEST_RUN_ERROR_TYPE.uncaughtJSError,
                 scriptErr:   'test-error-with-<tag>',
                 pageDestUrl: 'http://page'
@@ -134,7 +121,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "uncaughtJSErrorInTestCodeStep" error message', function () {
-            var err = {
+            const err = {
                 type:      TEST_RUN_ERROR_TYPE.uncaughtJSErrorInTestCodeStep,
                 stepName:  'Step with <tag>',
                 scriptErr: 'error with <tag>'
@@ -144,7 +131,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "storeDomNodeOrJqueryObject" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.storeDomNodeOrJqueryObject,
                 stepName: 'Step with <tag>'
             };
@@ -153,7 +140,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "emptyFirstArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.emptyFirstArgument,
                 stepName: 'Step with <tag>',
                 action:   'testAction'
@@ -163,7 +150,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "invisibleActionElement" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.invisibleActionElement,
                 stepName: 'Step with <tag>',
                 action:   'test-action',
@@ -174,7 +161,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "incorrectDraggingSecondArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.incorrectDraggingSecondArgument,
                 stepName: 'Step with <tag>'
             };
@@ -183,7 +170,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "incorrectPressActionArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.incorrectPressActionArgument,
                 stepName: 'Step with <tag>'
             };
@@ -192,7 +179,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "emptyTypeActionArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.emptyTypeActionArgument,
                 stepName: 'Step with <tag>'
             };
@@ -201,7 +188,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "unexpectedDialog" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.unexpectedDialog,
                 stepName: 'Step with <tag>',
                 dialog:   'test-dialog',
@@ -212,7 +199,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "expectedDialogDoesntAppear" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.expectedDialogDoesntAppear,
                 stepName: 'Step with <tag>',
                 dialog:   'test-dialog'
@@ -222,7 +209,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "incorrectSelectActionArguments" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.incorrectSelectActionArguments,
                 stepName: 'Step with <tag>'
             };
@@ -231,7 +218,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "incorrectWaitActionMillisecondsArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.incorrectWaitActionMillisecondsArgument,
                 stepName: 'Step with <tag>'
             };
@@ -240,7 +227,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "incorrectWaitForActionEventArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.incorrectWaitForActionEventArgument,
                 stepName: 'Step with <tag>'
             };
@@ -249,7 +236,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "incorrectWaitForActionTimeoutArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.incorrectWaitForActionTimeoutArgument,
                 stepName: 'Step with <tag>'
             };
@@ -258,7 +245,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "waitForActionTimeoutExceeded" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.waitForActionTimeoutExceeded,
                 stepName: 'Step with <tag>'
             };
@@ -267,7 +254,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "emptyIFrameArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.emptyIFrameArgument,
                 stepName: 'Step with <tag>'
             };
@@ -276,7 +263,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "iframeArgumentIsNotIFrame" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.iframeArgumentIsNotIFrame,
                 stepName: 'Step with <tag>'
             };
@@ -285,7 +272,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "multipleIFrameArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.multipleIFrameArgument,
                 stepName: 'Step with <tag>'
             };
@@ -294,7 +281,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "incorrectIFrameArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.incorrectIFrameArgument,
                 stepName: 'Step with <tag>'
             };
@@ -303,7 +290,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "uploadCanNotFindFileToUpload" error message', function () {
-            var err = {
+            const err = {
                 type:      TEST_RUN_ERROR_TYPE.uploadCanNotFindFileToUpload,
                 stepName:  'Step with <tag>',
                 filePaths: ['/unix/path/with/<tag>', 'path2']
@@ -313,7 +300,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "uploadElementIsNotFileInput" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.uploadElementIsNotFileInput,
                 stepName: 'Step with <tag>'
             };
@@ -322,7 +309,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "uploadInvalidFilePathArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.uploadInvalidFilePathArgument,
                 stepName: 'Step with <tag>'
             };
@@ -331,7 +318,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "pageNotLoaded" error message', function () {
-            var err = {
+            const err = {
                 type:    TEST_RUN_ERROR_TYPE.pageNotLoaded,
                 message: 'Failed to find a DNS-record for the resource at <a href="example.org">example.org</a>.'
             };
@@ -340,7 +327,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "incorrectGlobalWaitForActionEventArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.incorrectGlobalWaitForActionEventArgument,
                 stepName: 'Step with <tag>'
             };
@@ -349,7 +336,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "incorrectGlobalWaitForActionTimeoutArgument" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.incorrectGlobalWaitForActionTimeoutArgument,
                 stepName: 'Step with <tag>'
             };
@@ -358,7 +345,7 @@ describe('Legacy error formatting', function () {
         });
 
         it('Should format "globalWaitForActionTimeoutExceeded" error message', function () {
-            var err = {
+            const err = {
                 type:     TEST_RUN_ERROR_TYPE.globalWaitForActionTimeoutExceeded,
                 stepName: 'Step with <tag>'
             };

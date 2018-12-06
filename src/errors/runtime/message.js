@@ -1,3 +1,9 @@
+// -------------------------------------------------------------
+// WARNING: this file is used by both the client and the server.
+// Do not use any browser or node-specific API!
+// -------------------------------------------------------------
+
+
 export default {
     browserDisconnected:                   'The {userAgent} browser disconnected. This problem may appear when a browser hangs or is closed, or due to network issues.',
     cantRunAgainstDisconnectedBrowsers:    'The following browsers disconnected: {userAgents}. Tests will not be run.',
@@ -10,6 +16,7 @@ export default {
     cantFindReporterForAlias:              'The provided "{name}" reporter does not exist. Check that you have specified the report format correctly.',
     multipleStdoutReporters:               'Multiple reporters attempting to write to stdout: "{reporters}". Only one reporter can write to stdout.',
     optionValueIsNotValidRegExp:           'The "{optionName}" option value is not a valid regular expression.',
+    optionValueIsNotValidKeyValue:         'The "{optionName}" option value is not a valid key-value pair.',
     testedAppFailedWithError:              'Tested app failed with an error:\n\n{errMessage}',
     invalidSpeedValue:                     'Speed should be a number between 0.01 and 1.',
     invalidConcurrencyFactor:              'The concurrency factor should be an integer greater or equal to 1.',
@@ -28,5 +35,8 @@ export default {
     invalidValueType:                      '{smthg} is expected to be a {type}, but it was {actual}.',
     unsupportedUrlProtocol:                'The specified "{url}" test page URL uses an unsupported {protocol}:// protocol. Only relative URLs or absolute URLs with http://, https:// and file:// protocols are supported.',
     unableToOpenBrowser:                   'Was unable to open the browser "{alias}" due to error.\n\n{errMessage}',
-    testControllerProxyCantResolveTestRun: `Cannot implicitly resolve the test run in the context of which the test controller action should be executed. Use test function's 't' argument instead.`
+    testControllerProxyCantResolveTestRun: `Cannot implicitly resolve the test run in the context of which the test controller action should be executed. Use test function's 't' argument instead.`,
+    requestHookConfigureAPIError:          'There was an error while configuring the request hook:\n\n{requestHookName}: {errMsg}',
+    timeLimitedPromiseTimeoutExpired:      'Timeout expired for a time limited promise',
+    forbiddenCharatersInScreenshotPath:    'There are forbidden characters in the "{screenshotPath}" {screenshotPathType}:\n {forbiddenCharsDescription}'
 };

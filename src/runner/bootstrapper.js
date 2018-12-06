@@ -7,6 +7,7 @@ import browserProviderPool from '../browser/provider/pool';
 import MESSAGE from '../errors/runtime/message';
 import BrowserSet from './browser-set';
 import TestedApp from './tested-app';
+import parseFileList from '../utils/parse-file-list';
 
 const DEFAULT_APP_INIT_DELAY = 1000;
 
@@ -14,18 +15,19 @@ export default class Bootstrapper {
     constructor (browserConnectionGateway) {
         this.browserConnectionGateway = browserConnectionGateway;
 
-        this.concurrency  = 1;
-        this.sources      = [];
-        this.browsers     = [];
-        this.reporters    = [];
-        this.filter       = null;
-        this.appCommand   = null;
-        this.appInitDelay = DEFAULT_APP_INIT_DELAY;
+        this.concurrency                 = 1;
+        this.sources                     = [];
+        this.browsers                    = [];
+        this.reporters                   = [];
+        this.filter                      = null;
+        this.appCommand                  = null;
+        this.appInitDelay                = DEFAULT_APP_INIT_DELAY;
+        this.disableTestSyntaxValidation = false;
     }
 
     static _splitBrowserInfo (browserInfo) {
-        var remotes   = [];
-        var automated = [];
+        const remotes   = [];
+        const automated = [];
 
         browserInfo.forEach(browser => {
             if (browser instanceof BrowserConnection)
@@ -41,7 +43,7 @@ export default class Bootstrapper {
         if (!this.browsers.length)
             throw new GeneralError(MESSAGE.browserNotSet);
 
-        var browserInfo = await Promise.all(this.browsers.map(browser => browserProviderPool.getBrowserInfo(browser)));
+        const browserInfo = await Promise.all(this.browsers.map(browser => browserProviderPool.getBrowserInfo(browser)));
 
         return flatten(browserInfo);
     }
@@ -55,12 +57,12 @@ export default class Bootstrapper {
     }
 
     async _getBrowserConnections (browserInfo) {
-        var { automated, remotes } = Bootstrapper._splitBrowserInfo(browserInfo);
+        const { automated, remotes } = Bootstrapper._splitBrowserInfo(browserInfo);
 
         if (remotes && remotes.length % this.concurrency)
             throw new GeneralError(MESSAGE.cannotDivideRemotesCountByConcurrency);
 
-        var browserConnections = this._createAutomatedConnections(automated);
+        let browserConnections = this._createAutomatedConnections(automated);
 
         browserConnections = browserConnections.concat(chunk(remotes, this.concurrency));
 
@@ -71,16 +73,17 @@ export default class Bootstrapper {
         if (!this.sources.length)
             throw new GeneralError(MESSAGE.testSourcesNotSet);
 
-        var compiler = new Compiler(this.sources);
-        var tests    = await compiler.getTests();
+        const parsedFileList = await parseFileList(this.sources, process.cwd());
+        const compiler       = new Compiler(parsedFileList, this.disableTestSyntaxValidation);
+        let tests            = await compiler.getTests();
 
-        var testsWithOnlyFlag = tests.filter(test => test.only);
+        const testsWithOnlyFlag = tests.filter(test => test.only);
 
         if (testsWithOnlyFlag.length)
             tests = testsWithOnlyFlag;
 
         if (this.filter)
-            tests = tests.filter(test => this.filter(test.name, test.fixture.name, test.fixture.path));
+            tests = tests.filter(test => this.filter(test.name, test.fixture.name, test.fixture.path, test.meta, test.fixture.meta));
 
         if (!tests.length)
             throw new GeneralError(MESSAGE.noTestsToRun);
@@ -89,7 +92,7 @@ export default class Bootstrapper {
     }
 
     _getReporterPlugins () {
-        var stdoutReporters = filter(this.reporters, r => isUndefined(r.outStream) || r.outStream === process.stdout);
+        const stdoutReporters = filter(this.reporters, r => isUndefined(r.outStream) || r.outStream === process.stdout);
 
         if (stdoutReporters.length > 1)
             throw new GeneralError(MESSAGE.multipleStdoutReporters, stdoutReporters.map(r => r.name).join(', '));
@@ -122,7 +125,7 @@ export default class Bootstrapper {
 
     async _startTestedApp () {
         if (this.appCommand) {
-            var testedApp = new TestedApp();
+            const testedApp = new TestedApp();
 
             await testedApp.start(this.appCommand, this.appInitDelay);
 
@@ -132,20 +135,71 @@ export default class Bootstrapper {
         return null;
     }
 
+    _canUseParallelBootstrapping (browserInfo) {
+        return browserInfo.every(browser => browser.provider.isLocalBrowser(null, browserInfo.browserName));
+    }
+
+    async _bootstrapSequence (browserInfo) {
+        const tests       = await this._getTests();
+        const testedApp   = await this._startTestedApp();
+        const browserSet  = await this._getBrowserConnections(browserInfo);
+
+        return { tests, testedApp, browserSet };
+    }
+
+    _wrapBootstrappingPromise (promise) {
+        return promise
+            .then(result => ({ error: null, result }))
+            .catch(error => ({ result: null, error }));
+    }
+
+    async _handleBootstrappingError ([browserSetStatus, testsStatus, testedAppStatus]) {
+        if (!browserSetStatus.error)
+            await browserSetStatus.result.dispose();
+
+        if (!testedAppStatus.error && testedAppStatus.result)
+            await testedAppStatus.result.kill();
+
+        if (testsStatus.error)
+            throw testsStatus.error;
+        else if (testedAppStatus.error)
+            throw testedAppStatus.error;
+        else
+            throw browserSetStatus.error;
+    }
+
+    async _bootstrapParallel (browserInfo) {
+        let bootstrappingPromises = [
+            this._getBrowserConnections(browserInfo),
+            this._getTests(),
+            this._startTestedApp()
+        ];
+
+        bootstrappingPromises = bootstrappingPromises.map(promise => this._wrapBootstrappingPromise(promise));
+
+        const bootstrappingStatuses = await Promise.all(bootstrappingPromises);
+
+        if (bootstrappingStatuses.some(status => status.error))
+            await this._handleBootstrappingError(bootstrappingStatuses);
+
+        const [browserSet, tests, testedApp] = bootstrappingStatuses.map(status => status.result);
+
+        return { browserSet, tests, testedApp };
+    }
 
     // API
     async createRunnableConfiguration () {
-        var reporterPlugins = this._getReporterPlugins();
+        const reporterPlugins = this._getReporterPlugins();
 
         // NOTE: If a user forgot to specify a browser, but has specified a path to tests, the specified path will be
         // considered as the browser argument, and the tests path argument will have the predefined default value.
         // It's very ambiguous for the user, who might be confused by compilation errors from an unexpected test.
         // So, we need to retrieve the browser aliases and paths before tests compilation.
-        var browserInfo = await this._getBrowserInfo();
-        var tests       = await this._getTests();
-        var testedApp   = await this._startTestedApp();
-        var browserSet  = await this._getBrowserConnections(browserInfo);
+        const browserInfo = await this._getBrowserInfo();
 
-        return { reporterPlugins, browserSet, tests, testedApp };
+        if (this._canUseParallelBootstrapping(browserInfo))
+            return { reporterPlugins, ...await this._bootstrapParallel(browserInfo) };
+
+        return { reporterPlugins, ...await this._bootstrapSequence(browserInfo) };
     }
 }

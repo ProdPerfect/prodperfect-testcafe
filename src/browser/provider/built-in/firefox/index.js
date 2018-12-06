@@ -2,7 +2,6 @@ import OS from 'os-family';
 import getRuntimeInfo from './runtime-info';
 import { start as startLocalFirefox, stop as stopLocalFirefox } from './local-firefox';
 import MarionetteClient from './marionette-client';
-import getConfig from './config';
 import getMaximizedHeadlessWindowSize from '../../utils/get-maximized-headless-window-size';
 
 
@@ -13,7 +12,7 @@ export default {
 
     async _createMarionetteClient (runtimeInfo) {
         try {
-            var marionetteClient = new MarionetteClient(runtimeInfo.marionettePort);
+            const marionetteClient = new MarionetteClient(runtimeInfo.marionettePort);
 
             await marionetteClient.connect();
 
@@ -25,8 +24,8 @@ export default {
     },
 
     async openBrowser (browserId, pageUrl, configString) {
-        var runtimeInfo = await getRuntimeInfo(configString);
-        var browserName = this.providerName.replace(':', '');
+        const runtimeInfo = await getRuntimeInfo(configString);
+        const browserName = this.providerName.replace(':', '');
 
         runtimeInfo.browserId   = browserId;
         runtimeInfo.browserName = browserName;
@@ -35,14 +34,15 @@ export default {
 
         await this.waitForConnectionReady(runtimeInfo.browserId);
 
-        runtimeInfo.marionetteClient = await this._createMarionetteClient(runtimeInfo);
+        if (runtimeInfo.marionettePort)
+            runtimeInfo.marionetteClient = await this._createMarionetteClient(runtimeInfo);
 
         this.openedBrowsers[browserId] = runtimeInfo;
     },
 
     async closeBrowser (browserId) {
-        var runtimeInfo = this.openedBrowsers[browserId];
-        var { config, marionetteClient } = runtimeInfo;
+        const runtimeInfo = this.openedBrowsers[browserId];
+        const { config, marionetteClient } = runtimeInfo;
 
         if (config.headless)
             await marionetteClient.quit();
@@ -52,23 +52,28 @@ export default {
         if (OS.mac && !config.headless)
             await stopLocalFirefox(runtimeInfo);
 
+        if (runtimeInfo.tempProfileDir)
+            await runtimeInfo.tempProfileDir.dispose();
+
         delete this.openedBrowsers[browserId];
     },
 
-    async isLocalBrowser (browserId, configString) {
-        var config = this.openedBrowsers[browserId] ? this.openedBrowsers[browserId].config : getConfig(configString);
+    async isLocalBrowser () {
+        return true;
+    },
 
-        return !config.headless;
+    isHeadlessBrowser (browserId) {
+        return this.openedBrowsers[browserId].config.headless;
     },
 
     async takeScreenshot (browserId, path) {
-        var { marionetteClient } = this.openedBrowsers[browserId];
+        const { marionetteClient } = this.openedBrowsers[browserId];
 
         await marionetteClient.takeScreenshot(path);
     },
 
     async resizeWindow (browserId, width, height) {
-        var { marionetteClient } = this.openedBrowsers[browserId];
+        const { marionetteClient } = this.openedBrowsers[browserId];
 
         await marionetteClient.setWindowSize(width, height);
     },
@@ -80,7 +85,7 @@ export default {
     },
 
     async hasCustomActionForBrowser (browserId) {
-        var { config, marionetteClient } = this.openedBrowsers[browserId];
+        const { config, marionetteClient } = this.openedBrowsers[browserId];
 
         return {
             hasCloseBrowser:                true,

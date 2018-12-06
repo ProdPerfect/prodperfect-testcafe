@@ -65,14 +65,18 @@ src(source) → this
 
 Parameter | Type                | Description
 --------- | ------------------- | ----------------------------------------------------------------------------
-`source`  | String &#124; Array | The relative or absolute path to a test fixture file, or several such paths.
+`source`  | String &#124; Array | The relative or absolute path to a test fixture file, or several such paths. You can use [glob patterns](https://github.com/isaacs/node-glob#glob-primer) to include (or exclude) multiple files.
 
 If you call the method several times, all the specified sources are added to the test runner.
 
-**Example**
+**Examples**
 
 ```js
 runner.src(['/home/user/tests/fixture1.js', 'fixture5.js']);
+```
+
+```js
+runner.src(['/home/user/tests/**/*.js', '!/home/user/tests/foo.js']);
 ```
 
 ### filter
@@ -83,9 +87,9 @@ Allows you to select which tests should be run.
 filter(callback) → this
 ```
 
-Parameter  | Type                                           | Description
----------- | ---------------------------------------------- | ----------------------------------------------------------------
-`callback` | `function(testName, fixtureName, fixturePath)` | The callback that determines if a particular test should be run.
+Parameter  | Type                                                                  | Description
+---------- | --------------------------------------------------------------------- | ----------------------------------------------------------------
+`callback` | `function(testName, fixtureName, fixturePath, testMeta, fixtureMeta)` | The callback that determines if a particular test should be run.
 
 The callback function is called for each test in the files specified using the [src](#src) method.
 
@@ -93,19 +97,23 @@ Return `true` from the callback to include the current test or `false` to exclud
 
 The callback function accepts the following arguments:
 
-Parameter     | Type   | Description
-------------- | ------ | ----------------------------------
-`testName`    | String | The name of the test.
-`fixtureName` | String | The name of the test fixture.
-`fixturePath` | String | The path to the test fixture file.
+Parameter     | Type                     | Description
+------------- | ------------------------ | ----------------------------------
+`testName`    | String                   | The name of the test.
+`fixtureName` | String                   | The name of the test fixture.
+`fixturePath` | String                   | The path to the test fixture file.
+`testMeta`    | Object\<String, String\> | The test metadata.
+`fixtureMeta` | Object\<String, String\> | The fixture metadata.
 
 **Example**
 
 ```js
-runner.filter((testName, fixtureName, fixturePath) => {
+runner.filter((testName, fixtureName, fixturePath, testMeta, fixtureMeta) => {
     return fixturePath.startsWith('D') &&
         testName.match(someRe) &&
-        fixtureName.match(anotherRe);
+        fixtureName.match(anotherRe) &&
+        testMeta.mobile === 'true' &&
+        fixtureMeta.env === 'staging';
 });
 ```
 
@@ -201,13 +209,14 @@ createTestCafe('localhost', 1337, 1338)
 Enables TestCafe to take screenshots of the tested webpages.
 
 ```text
-screenshots(path [, takeOnFails]) → this
+screenshots(path [, takeOnFails, pathPattern]) → this
 ```
 
 Parameter                  | Type    | Description                                                                   | Default
 -------------------------- | ------- | ----------------------------------------------------------------------------- | -------
-`path`                     | String  | The path to which the screenshots are saved.
+`path`                     | String  | The base path where the screenshots are saved. Note that to construct a complete path to these screenshots, TestCafe uses default [path patterns](../command-line-interface.md#path-patterns). You can override these patterns using the method's `screenshotPathPattern` parameter.
 `takeOnFails`&#160;*(optional)* | Boolean | Specifies if screenshots should be taken automatically when a test fails. | `false`
+`sceenshotPathPattern`&#160;*(optional)* | String | The pattern to compose screenshot files' relative path and name. See [--screenshot-path-pattern](../command-line-interface.md#-p---screenshot-path-pattern) for information about the available placeholders.
 
 The `screenshots` function should be called to allow TestCafe to take screenshots
 when the [t.takeScreenshot](../../test-api/actions/take-screenshot.md) action is called from test code.
@@ -219,7 +228,7 @@ Set the `takeOnFails` parameter to `true` to take a screenshot when a test fails
 **Example**
 
 ```js
-runner.screenshots('reports/screenshots/', true);
+runner.screenshots('reports/screenshots/', true, '${DATE}_${TIME}/test-${TEST_INDEX}/${USERAGENT}/${FILE_INDEX}.png');
 ```
 
 ### reporter
@@ -299,7 +308,7 @@ concurrency(n) → this
 ```
 
 TestCafe opens `n` instances of the same browser and creates a pool of browser instances.
-Tests are run concurrently against this pool, that is, each test is run in the first free instance.
+Tests are run concurrently against this pool, that is, each test is run in the first available instance.
 
 The `concurrency` function takes the following parameters:
 
@@ -402,15 +411,18 @@ async run(options) → Promise<Number>
 You can pass the following options to the `runner.run` function.
 
 Parameter         | Type    | Description                                                                                                                                                                           | Default
------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------
+----------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------
 `skipJsErrors`    | Boolean | Defines whether to continue running a test after a JavaScript error occurs on a page (`true`), or consider such a test failed (`false`).                                              | `false`
+`skipUncaughtErrors` | Boolean | Defines whether to continue running a test after an uncaught error or unhandled promise rejection occurs on the server (`true`), or consider such a test failed (`false`).                                              | `false`
 `quarantineMode`  | Boolean | Defines whether to enable the [quarantine mode](#quarantine-mode).                                                                                                                    | `false`
+`debugMode`       | Boolean | Specifies if tests run in the debug mode. If this option is enabled, test execution is paused before the first action or assertion allowing you to invoke the developer tools and debug. In the debug mode, you can execute the test step-by-step to reproduce its incorrect behavior. You can also use the **Unlock page** switch in the footer to unlock the tested page and interact with its elements. | `false`
+`debugOnFail`     | Boolean | Specifies whether to enter the debug mode when a test fails. If enabled, the test is paused at the moment it fails, so that you can explore the tested page to determine what caused the failure. | `false`
 `selectorTimeout` | Number  | Specifies the time (in milliseconds) within which [selectors](../../test-api/selecting-page-elements/selectors/README.md) make attempts to obtain a node to be returned. See [Selector Timeout](../../test-api/selecting-page-elements/selectors/using-selectors.md#selector-timeout). | `10000`
 `assertionTimeout` | Number  | Specifies the time (in milliseconds) within which TestCafe makes attempts  to successfully execute an [assertion](../../test-api/assertions/README.md) if [a selector property](../../test-api/selecting-page-elements/selectors/using-selectors.md#define-assertion-actual-value) or a [client function](../../test-api/obtaining-data-from-the-client/README.md) was passed as an actual value. See [Smart Assertion Query Mechanism](../../test-api/assertions/README.md#smart-assertion-query-mechanism). | `3000`
 `pageLoadTimeout` | Number  | Specifies the time (in milliseconds) passed after the `DOMContentLoaded` event, within which TestCafe waits for the `window.load` event to fire. After the timeout passes or the `window.load` event is raised (whichever happens first), TestCafe starts the test. You can set this timeout to `0` to skip waiting for `window.load`. | `3000`
 `speed`           | Number  | Specifies the test execution speed. Should be a number between `1` (the fastest) and `0.01` (the slowest). If speed is also specified for an [individual action](../../test-api/actions/action-options.md#basic-action-options), the action speed setting overrides test speed. | `1`
-`debugMode`       | Boolean | Specifies if tests run in the debug mode. If this option is enabled, test execution is paused before the first action or assertion allowing you to invoke the developer tools and debug. In the debug mode, you can execute the test step-by-step to reproduce its incorrect behavior. You can also use the **Unlock page** switch in the footer to unlock the tested page and interact with its elements. | `false`
-`debugOnFail`     | Boolean | Specifies whether to enter the debug mode when a test fails. If enabled, the test is paused at the moment it fails, so that you can explore the tested page to determine what caused the failure. | `false`
+`stopOnFirstFail`    | Boolean | Defines whether to stop an entire test run if any test fails. This allows you not to wait for all the tests included in the test task to finish and allows focusing on the first error. | `false`
+`disableTestSyntaxValidation` | Boolean | Defines whether to disable checks for [test](../../test-api/test-code-structure.md#tests) and [fixture](../../test-api/test-code-structure.md#fixtures) directives in test files. Use this option to run dynamically loaded tests. See details in the [--disable-test-syntax-validation](../command-line-interface.md#--disable-test-syntax-validation) command line option description. | `false`
 
 After all tests are finished, call the [testcafe.close](testcafe.md#close) function to stop the TestCafe server.
 
@@ -431,7 +443,8 @@ createTestCafe('localhost', 1337, 1338)
             selectorTimeout: 50000,
             assertionTimeout: 7000,
             pageLoadTimeout: 8000,
-            speed: 0.1
+            speed: 0.1,
+            stopOnFirstFail: true
         });
     })
     .then(failed => {
@@ -440,6 +453,9 @@ createTestCafe('localhost', 1337, 1338)
     })
     .catch(error => { /* ... */ });
 ```
+
+If a browser stops responding while it executes tests, TestCafe restarts the browser and reruns the current test in a new browser instance.
+If the same problem occurs with this test two more times, the test run finishes and an error is thrown.
 
 #### Cancelling Test Tasks
 
@@ -459,18 +475,22 @@ You can also cancel all pending tasks at once using the [runner.stop](#stop) fun
 
 #### Quarantine Mode
 
-The quarantine mode is designed to isolate *non-deterministic* tests (that is, tests that sometimes pass and fail without a clear reason)
-from the rest of the test base (*healthy* tests).
+The quarantine mode is designed to isolate *non-deterministic* tests (that is, tests that pass and fail without any apparent reason) from the other tests.
 
-When quarantine mode is enabled, tests are not marked as *failed* after the first unsuccessful run but rather sent to quarantine.
-After that, these tests are run again several times. The outcome of the most runs (*passed* or *failed*) is recorded as the test result.
-A test is separately marked *unstable* if the outcome varies between runs. The test counts the run that was quarantined.
+When the quarantine mode is enabled, tests run according to the following logic:
 
-To learn more about non-deterministic tests, see Martin Fowler's [Eradicating Non-Determinism in Tests](http://martinfowler.com/articles/nonDeterminism.html) article.
+1. A test runs at the first time. If it passes, TestCafe proceeds to the next test.
+2. If the test fails, it runs again until it passes or fails three times.
+3. The most frequent outcome is recorded as the test result.
+4. If the test result differs between test runs, the test is marked as unstable.
+
+> Note that it increases the test task's duration if you enable quarantine mode on your test machine because failed tests are executed three to five times.
+
+See Martin Fowler's [Eradicating Non-Determinism in Tests](http://martinfowler.com/articles/nonDeterminism.html) article for more information about non-deterministic tests.
 
 ### stop
 
-Stops all pending test tasks.
+Stops all the pending test tasks.
 
 ```text
 async stop()

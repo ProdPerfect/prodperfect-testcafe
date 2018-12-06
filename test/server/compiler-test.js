@@ -8,9 +8,16 @@ const exportableLib     = require('../../lib/api/exportable-lib');
 const createStackFilter = require('../../lib/errors/create-stack-filter.js');
 const assertError       = require('./helpers/assert-error').assertError;
 const compile           = require('./helpers/compile');
+const { exec }          = require('child_process');
+
+require('source-map-support').install();
 
 describe('Compiler', function () {
-    var testRunMock = { id: 'yo' };
+    const testRunMock = { id: 'yo' };
+
+    const tsCompilerPath     = path.resolve('src/compiler/test-file/formats/typescript/compiler.js');
+    const apiBasedPath       = path.resolve('src/compiler/test-file/api-based.js');
+    const esNextCompilerPath = path.resolve('src/compiler/test-file/formats/es-next/compiler.js');
 
     this.timeout(20000);
 
@@ -20,7 +27,7 @@ describe('Compiler', function () {
     }
 
     it('Should compile mixed content', function () {
-        var sources = [
+        const sources = [
             'test/server/data/test-suites/mixed-content/testfile.js',
             'test/server/data/test-suites/mixed-content/legacy.test.js',
             'test/server/data/test-suites/mixed-content/non-testfile.js'
@@ -40,18 +47,51 @@ describe('Compiler', function () {
     });
 
     describe('ES-next', function () {
+        it('Should compile test defined in separate module if option is enabled', function () {
+            const sources = [
+                'test/server/data/test-suites/test-as-module/with-tests/testfile.js'
+            ];
+
+            return compile(sources, true)
+                .then(function (compiled) {
+                    const tests    = compiled.tests;
+                    const fixtures = compiled.fixtures;
+
+                    expect(tests.length).eql(1);
+                    expect(fixtures.length).eql(1);
+
+                    expect(tests[0].name).eql('test');
+                    expect(fixtures[0].name).eql('Library tests');
+                });
+        });
+
+        it('Should not compile test defined in separate module if option is disabled', function () {
+            const sources = [
+                'test/server/data/test-suites/test-as-module/with-tests/testfile.js'
+            ];
+
+            return compile(sources)
+                .then(function (compiled) {
+                    const tests    = compiled.tests;
+                    const fixtures = compiled.fixtures;
+
+                    expect(tests.length).eql(0);
+                    expect(fixtures.length).eql(0);
+                });
+        });
+
         it('Should compile test files and their dependencies', function () {
-            var sources = [
+            const sources = [
                 'test/server/data/test-suites/basic/testfile1.js',
                 'test/server/data/test-suites/basic/testfile2.js'
             ];
 
             return compile(sources)
                 .then(function (compiled) {
-                    var testfile1 = path.resolve('test/server/data/test-suites/basic/testfile1.js');
-                    var testfile2 = path.resolve('test/server/data/test-suites/basic/testfile2.js');
-                    var tests     = compiled.tests;
-                    var fixtures  = compiled.fixtures;
+                    const testfile1 = path.resolve('test/server/data/test-suites/basic/testfile1.js');
+                    const testfile2 = path.resolve('test/server/data/test-suites/basic/testfile2.js');
+                    const tests     = compiled.tests;
+                    const fixtures  = compiled.fixtures;
 
                     expect(tests.length).eql(4);
                     expect(fixtures.length).eql(3);
@@ -133,18 +173,51 @@ describe('Compiler', function () {
 
 
     describe('TypeScript', function () {
+        it('Should compile test defined in separate module if option is enabled', function () {
+            const sources = [
+                'test/server/data/test-suites/test-as-module/with-tests/testfile.ts'
+            ];
+
+            return compile(sources, true)
+                .then(function (compiled) {
+                    const tests    = compiled.tests;
+                    const fixtures = compiled.fixtures;
+
+                    expect(tests.length).eql(1);
+                    expect(fixtures.length).eql(1);
+
+                    expect(tests[0].name).eql('test');
+                    expect(fixtures[0].name).eql('Library tests');
+                });
+        });
+
+        it('Should not compile test defined in separate module if option is disabled', function () {
+            const sources = [
+                'test/server/data/test-suites/test-as-module/with-tests/testfile.ts'
+            ];
+
+            return compile(sources)
+                .then(function (compiled) {
+                    const tests    = compiled.tests;
+                    const fixtures = compiled.fixtures;
+
+                    expect(tests.length).eql(0);
+                    expect(fixtures.length).eql(0);
+                });
+        });
+
         it('Should compile test files and their dependencies', function () {
-            var sources = [
+            const sources = [
                 'test/server/data/test-suites/typescript-basic/testfile1.ts',
                 'test/server/data/test-suites/typescript-basic/testfile2.ts'
             ];
 
             return compile(sources)
                 .then(function (compiled) {
-                    var testfile1 = path.resolve('test/server/data/test-suites/typescript-basic/testfile1.ts');
-                    var testfile2 = path.resolve('test/server/data/test-suites/typescript-basic/testfile2.ts');
-                    var tests     = compiled.tests;
-                    var fixtures  = compiled.fixtures;
+                    const testfile1 = path.resolve('test/server/data/test-suites/typescript-basic/testfile1.ts');
+                    const testfile2 = path.resolve('test/server/data/test-suites/typescript-basic/testfile2.ts');
+                    const tests     = compiled.tests;
+                    const fixtures  = compiled.fixtures;
 
                     expect(tests.length).eql(4);
                     expect(fixtures.length).eql(3);
@@ -197,6 +270,22 @@ describe('Compiler', function () {
                 });
         });
 
+        it('Should complile ts-definitions successfully with the `--strict` option enabled', function () {
+            const tscPath  = path.resolve('node_modules/typescript/bin/tsc');
+            const defsPath = path.resolve('ts-defs/index.d.ts');
+            const args     = '--strict';
+            const command  = `node ${tscPath} ${defsPath} ${args} --target ES6`;
+
+            return new Promise(resolve => {
+                exec(command, (error, stdout) => {
+                    resolve({ error, stdout });
+                });
+            }).then(value => {
+                expect(value.stdout).eql('');
+                expect(value.error).is.null;
+            });
+        });
+
         it('Should provide API definitions', function () {
             const typescriptDefsFolder = 'test/server/data/test-suites/typescript-defs/';
             const src                  = [];
@@ -221,18 +310,120 @@ describe('Compiler', function () {
                 });
         });
 
+        it('Should import pure TypeScript dependency module', () => {
+            return compile('test/server/data/test-suites/typescript-pure-ts-module-dep/testfile.ts')
+                .then(function (compiled) {
+                    return compiled.tests[0].fn(testRunMock);
+                })
+                .then(function (result) {
+                    expect(result.exportableLib).eql(exportableLib);
+                    expect(result.exportableLib).eql(result.exportableLibInDep);
+                });
+        });
+    });
+
+
+    describe('CoffeeScript', function () {
+        it('Should compile test defined in separate module if option is enabled', function () {
+            const sources = [
+                'test/server/data/test-suites/test-as-module/with-tests/testfile.coffee'
+            ];
+
+            return compile(sources, true)
+                .then(function (compiled) {
+                    const tests    = compiled.tests;
+                    const fixtures = compiled.fixtures;
+
+                    expect(tests.length).eql(1);
+                    expect(fixtures.length).eql(1);
+
+                    expect(tests[0].name).eql('test');
+                    expect(fixtures[0].name).eql('Library tests');
+                });
+        });
+
+        it('Should not compile test defined in separate module if option is disabled', function () {
+            const sources = [
+                'test/server/data/test-suites/test-as-module/with-tests/testfile.coffee'
+            ];
+
+            return compile(sources)
+                .then(function (compiled) {
+                    const tests    = compiled.tests;
+                    const fixtures = compiled.fixtures;
+
+                    expect(tests.length).eql(0);
+                    expect(fixtures.length).eql(0);
+                });
+        });
+
+
+        it('Should compile test files and their dependencies', function () {
+            const sources = [
+                'test/server/data/test-suites/coffeescript-basic/testfile1.coffee',
+                'test/server/data/test-suites/coffeescript-basic/testfile2.coffee'
+            ];
+
+            return compile(sources)
+                .then(function (compiled) {
+                    const testfile1 = path.resolve('test/server/data/test-suites/coffeescript-basic/testfile1.coffee');
+                    const testfile2 = path.resolve('test/server/data/test-suites/coffeescript-basic/testfile2.coffee');
+
+                    const tests     = compiled.tests;
+                    const fixtures  = compiled.fixtures;
+
+                    expect(tests.length).eql(4);
+                    expect(fixtures.length).eql(3);
+
+                    expect(fixtures[0].name).eql('Fixture1');
+                    expect(fixtures[0].path).eql(testfile1);
+                    expect(fixtures[0].pageUrl).eql('about:blank');
+
+                    expect(fixtures[1].name).eql('Fixture2');
+                    expect(fixtures[1].path).eql(testfile1);
+                    expect(fixtures[1].pageUrl).eql('http://example.org');
+
+                    expect(fixtures[2].name).eql('Fixture3');
+                    expect(fixtures[2].path).eql(testfile2);
+                    expect(fixtures[2].pageUrl).eql('https://example.com');
+
+                    expect(tests[0].name).eql('Fixture1Test1');
+                    expect(tests[0].fixture).eql(fixtures[0]);
+
+                    expect(tests[1].name).eql('Fixture1Test2');
+                    expect(tests[1].fixture).eql(fixtures[0]);
+
+                    expect(tests[2].name).eql('Fixture2Test1');
+                    expect(tests[2].fixture).eql(fixtures[1]);
+
+                    expect(tests[3].name).eql('Fixture3Test1');
+                    expect(tests[3].fixture).eql(fixtures[2]);
+
+                    return Promise.all(tests.map(function (test) {
+                        return test.fn(testRunMock);
+                    }));
+                })
+                .then(function (results) {
+                    expect(results).eql([
+                        'F1T1: Hey from dep1',
+                        'F1T2',
+                        'F2T1',
+                        'F3T1: Hey from dep1 and dep2'
+                    ]);
+                });
+        });
     });
 
 
     describe('RAW file', function () {
         it('Should compile test files', function () {
-            var sources = ['test/server/data/test-suites/raw/test.testcafe'];
+            const sources = ['test/server/data/test-suites/raw/test.testcafe'];
 
             return compile(sources)
                 .then(function (compiled) {
-                    var testfile = path.resolve('test/server/data/test-suites/raw/test.testcafe');
-                    var tests    = compiled.tests;
-                    var fixtures = compiled.fixtures;
+                    const testfile = path.resolve('test/server/data/test-suites/raw/test.testcafe');
+                    const tests    = compiled.tests;
+                    const fixtures = compiled.fixtures;
 
                     expect(tests.length).eql(3);
                     expect(fixtures.length).eql(2);
@@ -257,8 +448,8 @@ describe('Compiler', function () {
         });
 
         it('Should raise an error if it cannot parse a raw file', function () {
-            var testfile1 = path.resolve('test/server/data/test-suites/raw/invalid.testcafe');
-            var testfile2 = path.resolve('test/server/data/test-suites/raw/invalid2.testcafe');
+            const testfile1 = path.resolve('test/server/data/test-suites/raw/invalid.testcafe');
+            const testfile2 = path.resolve('test/server/data/test-suites/raw/invalid2.testcafe');
 
             return compile(testfile1)
                 .then(function () {
@@ -282,7 +473,7 @@ describe('Compiler', function () {
         });
 
         describe('test.fn()', function () {
-            var TestRunMock = function (expectedError) {
+            const TestRunMock = function (expectedError) {
                 this.id            = 'PPBqWA9';
                 this.commands      = [];
                 this.expectedError = expectedError;
@@ -295,9 +486,9 @@ describe('Compiler', function () {
             };
 
             it('Should be resolved if the test passed', function () {
-                var sources = ['test/server/data/test-suites/raw/test.testcafe'];
-                var test    = null;
-                var testRun = new TestRunMock();
+                const sources = ['test/server/data/test-suites/raw/test.testcafe'];
+                let test      = null;
+                const testRun = new TestRunMock();
 
                 return compile(sources)
                     .then(function (compiled) {
@@ -311,9 +502,9 @@ describe('Compiler', function () {
             });
 
             it('Should be rejected if the test failed', function () {
-                var sources       = ['test/server/data/test-suites/raw/test.testcafe'];
-                var expectedError = 'test-error';
-                var testRun       = new TestRunMock(expectedError);
+                const sources       = ['test/server/data/test-suites/raw/test.testcafe'];
+                const expectedError = 'test-error';
+                const testRun       = new TestRunMock(expectedError);
 
                 return compile(sources)
                     .then(function (compiled) {
@@ -345,9 +536,9 @@ describe('Compiler', function () {
         }
 
         function testClientFnCompilation (testName) {
-            var testDir  = 'test/server/data/client-fn-compilation/' + testName;
-            var src      = testDir + '/testfile.js';
-            var expected = getExpected(testDir);
+            const testDir  = 'test/server/data/client-fn-compilation/' + testName;
+            const src      = testDir + '/testfile.js';
+            const expected = getExpected(testDir);
 
             return compile(src)
                 .then(function (compiled) {
@@ -374,10 +565,6 @@ describe('Compiler', function () {
             return testClientFnCompilation('json-stringify');
         });
 
-        it('Should polyfill Babel `typeof` artifacts', function () {
-            return testClientFnCompilation('typeof');
-        });
-
         describe('Regression', function () {
             it('Should compile ES6 object method (GH-1279)', function () {
                 return testClientFnCompilation('gh1279');
@@ -399,8 +586,15 @@ describe('Compiler', function () {
         });
 
         it('Should raise an error if test dependency has a syntax error', function () {
-            var testfile = path.resolve('test/server/data/test-suites/syntax-error-in-dep/testfile.js');
-            var dep      = posixResolve('test/server/data/test-suites/syntax-error-in-dep/dep.js');
+            const testfile = path.resolve('test/server/data/test-suites/syntax-error-in-dep/testfile.js');
+            const dep      = posixResolve('test/server/data/test-suites/syntax-error-in-dep/dep.js');
+
+            const stack = [
+                esNextCompilerPath,
+                esNextCompilerPath,
+                apiBasedPath,
+                testfile
+            ];
 
             return compile(testfile)
                 .then(function () {
@@ -408,7 +602,7 @@ describe('Compiler', function () {
                 })
                 .catch(function (err) {
                     assertError(err, {
-                        stackTop: testfile,
+                        stackTop: stack,
 
                         message: 'Cannot prepare tests due to an error.\n\n' +
                                  'SyntaxError: ' + dep + ': Unexpected token, expected { (1:7)'
@@ -417,8 +611,14 @@ describe('Compiler', function () {
         });
 
         it("Should raise an error if dependency can't require a module", function () {
-            var testfile = path.resolve('test/server/data/test-suites/require-error-in-dep/testfile.js');
-            var dep      = path.resolve('test/server/data/test-suites/require-error-in-dep/dep.js');
+            const testfile = path.resolve('test/server/data/test-suites/require-error-in-dep/testfile.js');
+            const dep      = path.resolve('test/server/data/test-suites/require-error-in-dep/dep.js');
+
+            const stack = [
+                dep,
+                apiBasedPath,
+                testfile
+            ];
 
             return compile(testfile)
                 .then(function () {
@@ -426,10 +626,7 @@ describe('Compiler', function () {
                 })
                 .catch(function (err) {
                     assertError(err, {
-                        stackTop: [
-                            dep,
-                            testfile
-                        ],
+                        stackTop: stack,
 
                         message: 'Cannot prepare tests due to an error.\n\n' +
                                  "Error: Cannot find module './yo'"
@@ -438,8 +635,8 @@ describe('Compiler', function () {
         });
 
         it('Should raise an error if dependency throws runtime error', function () {
-            var testfile = path.resolve('test/server/data/test-suites/runtime-error-in-dep/testfile.js');
-            var dep      = path.resolve('test/server/data/test-suites/runtime-error-in-dep/dep.js');
+            const testfile = path.resolve('test/server/data/test-suites/runtime-error-in-dep/testfile.js');
+            const dep      = path.resolve('test/server/data/test-suites/runtime-error-in-dep/dep.js');
 
             return compile(testfile)
                 .then(function () {
@@ -449,6 +646,7 @@ describe('Compiler', function () {
                     assertError(err, {
                         stackTop: [
                             dep,
+                            apiBasedPath,
                             testfile
                         ],
 
@@ -459,7 +657,7 @@ describe('Compiler', function () {
         });
 
         it("Should raise an error if test file can't require a module", function () {
-            var testfile = path.resolve('test/server/data/test-suites/require-error-in-testfile/testfile.js');
+            const testfile = path.resolve('test/server/data/test-suites/require-error-in-testfile/testfile.js');
 
             return compile(testfile)
                 .then(function () {
@@ -476,7 +674,7 @@ describe('Compiler', function () {
         });
 
         it('Should raise an error if test file throws runtime error', function () {
-            var testfile = path.resolve('test/server/data/test-suites/runtime-error-in-testfile/testfile.js');
+            const testfile = path.resolve('test/server/data/test-suites/runtime-error-in-testfile/testfile.js');
 
             return compile(testfile)
                 .then(function () {
@@ -493,7 +691,12 @@ describe('Compiler', function () {
         });
 
         it('Should raise an error if test file has a syntax error', function () {
-            var testfile = posixResolve('test/server/data/test-suites/syntax-error-in-testfile/testfile.js');
+            const testfile = posixResolve('test/server/data/test-suites/syntax-error-in-testfile/testfile.js');
+
+            const stack  = [
+                esNextCompilerPath,
+                apiBasedPath,
+            ];
 
             return compile(testfile)
                 .then(function () {
@@ -501,7 +704,7 @@ describe('Compiler', function () {
                 })
                 .catch(function (err) {
                     assertError(err, {
-                        stackTop: null,
+                        stackTop: stack,
 
                         message: 'Cannot prepare tests due to an error.\n\n' +
                                  'SyntaxError: ' + testfile + ': Unexpected token, expected { (1:7)'
@@ -510,9 +713,14 @@ describe('Compiler', function () {
         });
 
         it('Should raise an error if test file has Flow syntax without a marker comment', function () {
-            var testfiles = [
+            const testfiles = [
                 posixResolve('test/server/data/test-suites/flow-type-declarations/no-flow-marker.js'),
                 posixResolve('test/server/data/test-suites/flow-type-declarations/flower-marker.js')
+            ];
+
+            const stack  = [
+                esNextCompilerPath,
+                apiBasedPath,
             ];
 
             return compile(testfiles[0])
@@ -521,7 +729,8 @@ describe('Compiler', function () {
                 })
                 .catch(function (err) {
                     assertError(err, {
-                        stackTop: null,
+                        stackTop: stack,
+
 
                         message: 'Cannot prepare tests due to an error.\n\n' +
                                  'SyntaxError: ' + testfiles[0] + ': Unexpected token, expected ; (1:8)'
@@ -534,7 +743,7 @@ describe('Compiler', function () {
                 })
                 .catch(function (err) {
                     assertError(err, {
-                        stackTop: null,
+                        stackTop: stack,
 
                         message: 'Cannot prepare tests due to an error.\n\n' +
                                  'SyntaxError: ' + testfiles[1] + ': Unexpected token, expected ; (2:8)'
@@ -543,7 +752,8 @@ describe('Compiler', function () {
         });
 
         it('Should raise an error if test file has a TypeScript error', function () {
-            var testfile = posixResolve('test/server/data/test-suites/typescript-compile-errors/testfile.ts');
+            const testfile = posixResolve('test/server/data/test-suites/typescript-compile-errors/testfile.ts');
+            const stack    = tsCompilerPath;
 
             return compile(testfile)
                 .then(function () {
@@ -551,7 +761,7 @@ describe('Compiler', function () {
                 })
                 .catch(function (err) {
                     assertError(err, {
-                        stackTop: null,
+                        stackTop: stack,
 
                         message: 'Cannot prepare tests due to an error.\n\n' +
                                  'Error: TypeScript compilation failed.\n' +
@@ -575,7 +785,7 @@ describe('Compiler', function () {
                     throw 'Promise rejection expected';
                 })
                 .catch(function (errList) {
-                    var callsite = errList.items[0].callsite.renderSync({ renderer: renderers.noColor });
+                    const callsite = errList.items[0].callsite.renderSync({ renderer: renderers.noColor });
 
                     expect(callsite).contains(' > 19 |        .method1()\n');
                 });
@@ -597,9 +807,9 @@ describe('Compiler', function () {
                     throw 'Promise rejection expected';
                 })
                 .catch(function (errList) {
-                    var stackTraceLimit = 200;
-                    var err             = errList.items[0];
-                    var stack           = err.callsite.stackFrames.filter(createStackFilter(stackTraceLimit));
+                    const stackTraceLimit = 200;
+                    const err             = errList.items[0];
+                    const stack           = err.callsite.stackFrames.filter(createStackFilter(stackTraceLimit));
 
                     expect(stack.length).eql(3);
                     expect(stack[0].source).to.have.string('helper.js');

@@ -6,8 +6,8 @@ import renderTemplate from '../../utils/render-template';
 
 // Errors
 export class GeneralError extends Error {
-    constructor () {
-        super(renderTemplate.apply(null, arguments));
+    constructor (...args) {
+        super(renderTemplate(...args));
         Error.captureStackTrace(this, GeneralError);
 
         // HACK: workaround for the `instanceof` problem
@@ -28,7 +28,7 @@ export class TestCompilationError extends Error {
 
 export class APIError extends Error {
     constructor (methodName, template, ...args) {
-        var rawMessage = renderTemplate(template, ...args);
+        const rawMessage = renderTemplate(template, ...args);
 
         super(renderTemplate(MESSAGE.cannotPrepareTestsDueToError, rawMessage));
 

@@ -1,24 +1,29 @@
-var path            = require('path');
-var expect          = require('chai').expect;
-var config          = require('../../../../config.js');
-var assertionHelper = require('../../../../assertion-helper.js');
+const path            = require('path');
+const fs              = require('fs');
+const chai            = require('chai');
+const { expect }      = chai;
+const config          = require('../../../../config.js');
+const assertionHelper = require('../../../../assertion-helper.js');
 
-var CUSTOM_SCREENSHOT_DIR              = '___test-screenshots___';
-var SCREENSHOT_PATH_MESSAGE_RE         = /^___test-screenshots___[\\/]\d{4,4}-\d{2,2}-\d{2,2}_\d{2,2}-\d{2,2}-\d{2,2}[\\/]test-1$/;
-var SCREENSHOT_ON_FAIL_PATH_MESSAGE_RE = /^.*run-1/;
-var SLASH_RE                           = /[\\/]/g;
+chai.use(require('chai-string'));
 
-var getReporter = function (scope) {
+const SCREENSHOTS_PATH                   = path.resolve(assertionHelper.SCREENSHOTS_PATH);
+const THUMBNAILS_DIR_NAME                = assertionHelper.THUMBNAILS_DIR_NAME;
+const SCREENSHOT_PATH_MESSAGE_RE         = /___test-screenshots___[\\/]\d{4,4}-\d{2,2}-\d{2,2}_\d{2,2}-\d{2,2}-\d{2,2}[\\/]test-1/;
+const SCREENSHOT_ON_FAIL_PATH_MESSAGE_RE = /^.*run-1/;
+const SLASH_RE                           = /[\\/]/g;
+
+const getReporter = function (scope) {
     const userAgents = { };
 
     function patchScreenshotPath (screenshotPath) {
-        return screenshotPath.replace(SCREENSHOT_ON_FAIL_PATH_MESSAGE_RE, '').replace(CUSTOM_SCREENSHOT_DIR, '').replace(SLASH_RE, '_');
+        return screenshotPath.replace(SCREENSHOT_ON_FAIL_PATH_MESSAGE_RE, '').replace(SCREENSHOTS_PATH, '').replace(SLASH_RE, '_');
     }
 
     function prepareScreenshot (screenshot, quarantine) {
         screenshot.screenshotPath  = patchScreenshotPath(screenshot.screenshotPath);
         screenshot.thumbnailPath   = patchScreenshotPath(screenshot.thumbnailPath);
-        screenshot.isPassedAttempt = quarantine[screenshot.quarantineAttemptID].passed;
+        screenshot.isPassedAttempt = quarantine[screenshot.quarantineAttempt].passed;
 
         userAgents[screenshot.userAgent] = true;
     }
@@ -43,7 +48,7 @@ var getReporter = function (scope) {
 };
 
 describe('[API] t.takeScreenshot()', function () {
-    if (config.useLocalBrowsers) {
+    if (config.useLocalBrowsers && config.currentEnvironmentName !== config.testingEnvironmentNames.localBrowsersIE) {
         afterEach(assertionHelper.removeScreenshotDir);
 
         it('Should take a screenshot', function () {
@@ -58,7 +63,8 @@ describe('[API] t.takeScreenshot()', function () {
             return runTests('./testcafe-fixtures/take-screenshot.js', 'Take a screenshot with a custom path (OS separator)',
                 { setScreenshotPath: true })
                 .then(function () {
-                    expect(testReport.screenshotPath).eql(CUSTOM_SCREENSHOT_DIR);
+
+                    expect(testReport.screenshotPath).startsWith(path.join(SCREENSHOTS_PATH, 'custom'));
 
                     const screenshotsCheckingOptions = { forError: false, screenshotsCount: 2, customPath: 'custom' };
 
@@ -70,7 +76,7 @@ describe('[API] t.takeScreenshot()', function () {
             return runTests('./testcafe-fixtures/take-screenshot.js', 'Take a screenshot with a custom path (DOS separator)',
                 { setScreenshotPath: true })
                 .then(function () {
-                    expect(testReport.screenshotPath).contains(CUSTOM_SCREENSHOT_DIR);
+                    expect(testReport.screenshotPath).contains(SCREENSHOTS_PATH);
 
                     const screenshotsCheckingOptions = { forError: false, screenshotsCount: 2, customPath: 'custom' };
 
@@ -117,6 +123,21 @@ describe('[API] t.takeScreenshot()', function () {
                 });
         });
 
+        it('Should check the path argument for forbidden characters', function () {
+            return runTests('./testcafe-fixtures/take-screenshot.js', 'Forbidden characters in the path argument', {
+                shouldFail: true,
+                only:       'chrome'
+            })
+                .catch(function (errs) {
+                    expect(errs[0]).to.contains('There are forbidden characters in the "path:with*forbidden|chars" screenshot path: ":" at index 4 "*" at index 9 "|" at index 19');
+                    expect(errs[0]).to.contains(
+                        '39 |test(\'Forbidden characters in the path argument\', async t => {' +
+                        ' > 40 |    await t.takeScreenshot(\'path:with*forbidden|chars\'); ' +
+                        '41 |});'
+                    );
+                });
+        });
+
         it('Should take a screenshot in quarantine mode', function () {
             return runTests('./testcafe-fixtures/take-screenshot.js', 'Take a screenshot in quarantine mode', {
                 setScreenshotPath: true,
@@ -136,7 +157,7 @@ describe('[API] t.takeScreenshot()', function () {
             return runTests('./testcafe-fixtures/take-screenshot.js', 'Take screenshots with same path', {
                 setScreenshotPath: true
             }).then(function () {
-                const screenshotFileName = path.join(CUSTOM_SCREENSHOT_DIR, '1.png');
+                const screenshotFileName = path.join(SCREENSHOTS_PATH, '1.png');
 
                 expect(testReport.warnings).eql([
                     `The file at "${screenshotFileName}" already exists. It has just been rewritten ` +
@@ -159,8 +180,8 @@ describe('[API] t.takeScreenshot()', function () {
         });
 
         it('Should provide screenshot log to a reporter', function () {
-            var result   = {};
-            var reporter = getReporter(result);
+            const result   = {};
+            const reporter = getReporter(result);
 
             return runTests('./testcafe-fixtures/take-screenshot.js', 'Take screenshots for reporter', {
                 setScreenshotPath:  true,
@@ -169,7 +190,7 @@ describe('[API] t.takeScreenshot()', function () {
                 reporters:          [{ reporter }]
             })
                 .then(function () {
-                    var getScreenshotsInfo = (screenshotPath, thumbnailPath, attempt, userAgent, takenOnFail) => {
+                    const getScreenshotsInfo = (screenshotPath, thumbnailPath, attempt, userAgent, takenOnFail) => {
                         if (!takenOnFail) {
                             screenshotPath = '_' + userAgent + attempt + screenshotPath;
                             thumbnailPath  = '_thumbnails' + screenshotPath;
@@ -179,20 +200,20 @@ describe('[API] t.takeScreenshot()', function () {
                             screenshotPath,
                             thumbnailPath,
                             takenOnFail,
-                            quarantineAttemptID: attempt,
-                            isPassedAttempt:     attempt > 1,
+                            quarantineAttempt: attempt,
+                            isPassedAttempt:   attempt > 1,
                             userAgent
                         };
                     };
 
-                    var expected = result.userAgents.reduce(function (value, userAgent) {
-                        for (var attempt = 1; attempt <= 4; attempt++) {
+                    const expected = result.userAgents.reduce(function (value, userAgent) {
+                        for (let attempt = 1; attempt <= 4; attempt++) {
                             value.push(getScreenshotsInfo('1.png', null, attempt, userAgent, false));
                             value.push(getScreenshotsInfo('2.png', null, attempt, userAgent, false));
                         }
 
-                        var errorScreenshotPath = '_' + userAgent + '_errors_1.png';
-                        var errorThumbnailPath  = '_' + userAgent + '_errors_thumbnails_1.png';
+                        const errorScreenshotPath = '_' + userAgent + '_errors_1.png';
+                        const errorThumbnailPath  = '_' + userAgent + '_errors_thumbnails_1.png';
 
                         value.push(getScreenshotsInfo(errorScreenshotPath, errorThumbnailPath, 1, userAgent, true));
 
@@ -203,11 +224,33 @@ describe('[API] t.takeScreenshot()', function () {
                     expect(result.unstable).eql(true);
                 });
         });
+
+        it('Should allow to use a custom path pattern', function () {
+            return runTests('./testcafe-fixtures/take-screenshot.js', 'Take a screenshot',
+                {
+                    setScreenshotPath:     true,
+                    screenshotPathPattern: '${TEST}-${FILE_INDEX}',
+                    only:                  'chrome'
+                })
+                .then(() => {
+                    expect(testReport.screenshotPath).eql(SCREENSHOTS_PATH);
+
+                    const screenshot1Path = path.join(assertionHelper.SCREENSHOTS_PATH, 'Take a screenshot-1.png');
+                    const screenshot2Path = path.join(assertionHelper.SCREENSHOTS_PATH, 'Take a screenshot-2.png');
+                    const thumbnail1Path  = path.join(assertionHelper.SCREENSHOTS_PATH, THUMBNAILS_DIR_NAME, 'Take a screenshot-1.png');
+                    const thumbnail2Path  = path.join(assertionHelper.SCREENSHOTS_PATH, THUMBNAILS_DIR_NAME, 'Take a screenshot-2.png');
+
+                    expect(fs.existsSync(screenshot1Path)).eql(true);
+                    expect(fs.existsSync(screenshot2Path)).eql(true);
+                    expect(fs.existsSync(thumbnail1Path)).eql(true);
+                    expect(fs.existsSync(thumbnail2Path)).eql(true);
+                });
+        });
     }
 });
 
 describe('[API] t.takeElementScreenshot()', function () {
-    if (config.useLocalBrowsers) {
+    if (config.useLocalBrowsers && config.currentEnvironmentName !== config.testingEnvironmentNames.localBrowsersIE) {
         afterEach(assertionHelper.removeScreenshotDir);
 
         it('Should take screenshot of an element', function () {
@@ -264,6 +307,21 @@ describe('[API] t.takeElementScreenshot()', function () {
                         ' 33 |test(\'Incorrect action path argument\', async t => {' +
                         ' > 34 |    await t.takeElementScreenshot(\'table\', 1);' +
                         ' 35 |});'
+                    );
+                });
+        });
+
+        it('Should check the path argument for forbidden characters', function () {
+            return runTests('./testcafe-fixtures/take-element-screenshot.js', 'Forbidden characters in the path argument', {
+                shouldFail: true,
+                only:       'chrome'
+            })
+                .catch(function (errs) {
+                    expect(errs[0]).to.contains('There are forbidden characters in the "path:with*forbidden|chars" screenshot path: ":" at index 4 "*" at index 9 "|" at index 19');
+                    expect(errs[0]).to.contains(
+                        '57 |test(\'Forbidden characters in the path argument\', async t => {' +
+                        ' > 58 |    await t.takeElementScreenshot(\'table\', \'path:with*forbidden|chars\'); ' +
+                        '59 |});'
                     );
                 });
         });
@@ -378,7 +436,10 @@ describe('[API] t.takeElementScreenshot()', function () {
                 only:              'chrome'
             })
                 .catch(function (errs) {
-                    expect(errs[0]).to.contains('The specified selector does not match any element in the DOM tree.');
+                    expect(errs[0]).to.contains(
+                        'The specified selector does not match any element in the DOM tree.' +
+                        '  > | Selector(\'table\')'
+                    );
                     expect(errs[0]).to.contains(
                         ' 49 |        .click(\'#remove\')' +
                         ' > 50 |        .takeElementScreenshot(\'table\', \'custom/\' + t.ctx.parsedUA.family + \'.png\');' +

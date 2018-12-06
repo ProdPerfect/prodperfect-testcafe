@@ -5,47 +5,43 @@ import promisifyEvent from 'promisify-event';
 import Promise from 'pinkie';
 import Mustache from 'mustache';
 import debugLogger from '../notifications/debug-logger';
-import SessionController from './session-controller';
 import TestRunDebugLog from './debug-log';
 import TestRunErrorFormattableAdapter from '../errors/test-run/formattable-adapter';
 import TestCafeErrorList from '../errors/error-list';
-import { executeJsExpression } from './execute-js-expression';
 import { PageLoadError, RoleSwitchInRoleInitializerError } from '../errors/test-run/';
-import BrowserManipulationQueue from './browser-manipulation-queue';
 import PHASE from './phase';
 import CLIENT_MESSAGES from './client-messages';
 import COMMAND_TYPE from './commands/type';
-import AssertionExecutor from '../assertions/executor';
 import delay from '../utils/delay';
 import testRunMarker from './marker-symbol';
 import testRunTracker from '../api/test-run-tracker';
 import ROLE_PHASE from '../role/phase';
-import TestRunBookmark from './bookmark';
-import ClientFunctionBuilder from '../client-functions/client-function-builder';
 import ReporterPluginHost from '../reporter/plugin-host';
 import BrowserConsoleMessages from './browser-console-messages';
-
-import { TakeScreenshotOnFailCommand } from './commands/browser-manipulation';
-import { SetNativeDialogHandlerCommand, SetTestSpeedCommand, SetPageLoadTimeoutCommand } from './commands/actions';
-
-
-import {
-    TestDoneCommand,
-    ShowAssertionRetriesStatusCommand,
-    HideAssertionRetriesStatusCommand,
-    SetBreakpointCommand,
-    BackupStoragesCommand
-} from './commands/service';
+import { UNSTABLE_NETWORK_MODE_HEADER } from '../browser/connection/unstable-network-mode';
+import WARNING_MESSAGE from '../notifications/warning-message';
 
 import {
     isCommandRejectableByPageError,
     isBrowserManipulationCommand,
     isScreenshotCommand,
     isServiceCommand,
-    canSetDebuggerBreakpointBeforeCommand
+    canSetDebuggerBreakpointBeforeCommand,
+    isExecutableOnClientCommand
 } from './commands/utils';
 
-//Const
+const lazyRequire                 = require('import-lazy')(require);
+const SessionController           = lazyRequire('./session-controller');
+const ClientFunctionBuilder       = lazyRequire('../client-functions/client-function-builder');
+const executeJsExpression         = lazyRequire('./execute-js-expression');
+const BrowserManipulationQueue    = lazyRequire('./browser-manipulation-queue');
+const TestRunBookmark             = lazyRequire('./bookmark');
+const AssertionExecutor           = lazyRequire('../assertions/executor');
+const actionCommands              = lazyRequire('./commands/actions');
+const browserManipulationCommands = lazyRequire('./commands/browser-manipulation');
+const serviceCommands             = lazyRequire('./commands/service');
+
+
 const TEST_RUN_TEMPLATE               = read('../client/test-run/index.js.mustache');
 const IFRAME_TEST_RUN_TEMPLATE        = read('../client/test-run/iframe.js.mustache');
 const TEST_DONE_CONFIRMATION_RESPONSE = 'test-done-confirmation';
@@ -112,6 +108,8 @@ export default class TestRun extends EventEmitter {
 
         this.quarantine = null;
 
+        this.warningLog = warningLog;
+
         this.injectable.scripts.push('/testcafe-core.js');
         this.injectable.scripts.push('/testcafe-ui.js');
         this.injectable.scripts.push('/testcafe-automation.js');
@@ -152,6 +150,8 @@ export default class TestRun extends EventEmitter {
     }
 
     _initRequestHook (hook) {
+        hook.warningLog = this.warningLog;
+
         hook._instantiateRequestFilterRules();
         hook._instantiatedRequestFilterRules.forEach(rule => {
             this.session.addRequestEventListeners(rule, {
@@ -163,6 +163,8 @@ export default class TestRun extends EventEmitter {
     }
 
     _disposeRequestHook (hook) {
+        hook.warningLog = null;
+
         hook._instantiatedRequestFilterRules.forEach(rule => {
             this.session.removeRequestEventListeners(rule);
         });
@@ -171,7 +173,6 @@ export default class TestRun extends EventEmitter {
     _initRequestHooks () {
         this.requestHooks.forEach(hook => this._initRequestHook(hook));
     }
-
 
     // Hammerhead payload
     _getPayloadScript () {
@@ -190,6 +191,7 @@ export default class TestRun extends EventEmitter {
             selectorTimeout:              this.opts.selectorTimeout,
             pageLoadTimeout:              this.pageLoadTimeout,
             skipJsErrors:                 this.opts.skipJsErrors,
+            retryTestPages:               !!this.opts.retryTestPages,
             speed:                        this.speed,
             dialogHandler:                JSON.stringify(this.activeDialogHandler)
         });
@@ -200,11 +202,11 @@ export default class TestRun extends EventEmitter {
             testRunId:       JSON.stringify(this.session.id),
             selectorTimeout: this.opts.selectorTimeout,
             pageLoadTimeout: this.pageLoadTimeout,
+            retryTestPages:  !!this.opts.retryTestPages,
             speed:           this.speed,
             dialogHandler:   JSON.stringify(this.activeDialogHandler)
         });
     }
-
 
     // Hammerhead handlers
     getAuthCredentials () {
@@ -221,6 +223,11 @@ export default class TestRun extends EventEmitter {
     }
 
     handlePageError (ctx, err) {
+        if (ctx.req.headers[UNSTABLE_NETWORK_MODE_HEADER]) {
+            ctx.closeWithError(500, err.toString());
+            return;
+        }
+
         this.pendingPageError = new PageLoadError(err);
 
         ctx.redirect(ctx.toProxyUrl('about:error'));
@@ -234,10 +241,11 @@ export default class TestRun extends EventEmitter {
             await fn(this);
         }
         catch (err) {
-            var screenshotPath = null;
+            let screenshotPath = null;
 
             if (this.opts.takeScreenshotsOnFails || this.opts.recordScreenCapture)
-                screenshotPath = await this.executeCommand(new TakeScreenshotOnFailCommand());
+                // screenshotPath = await this.executeCommand(new TakeScreenshotOnFailCommand());
+                screenshotPath = await this.executeCommand(new browserManipulationCommands.TakeScreenshotOnFailCommand());
 
             this.addError(err, screenshotPath);
             return false;
@@ -271,15 +279,25 @@ export default class TestRun extends EventEmitter {
 
         this.emit('start');
 
+        const onDisconnected = err => this._disconnect(err);
+
+        this.browserConnection.once('disconnected', onDisconnected);
+
         if (await this._runBeforeHook()) {
             await this._executeTestFn(PHASE.inTest, this.test.fn);
             await this._runAfterHook();
         }
 
+        if (this.disconnected)
+            return;
+
+        this.browserConnection.removeListener('disconnected', onDisconnected);
+
         if (this.errs.length && this.debugOnFail)
             await this._enqueueSetBreakpointCommand(null, this.debugReporterPluginHost.formatError(this.errs[0]));
 
-        await this.executeCommand(new TestDoneCommand());
+        await this.executeCommand(new serviceCommands.TestDoneCommand());
+
         this._addPendingPageErrorIfAny();
 
         delete testRunTracker.activeTestRuns[this.session.id];
@@ -289,7 +307,7 @@ export default class TestRun extends EventEmitter {
 
     _evaluate (code) {
         try {
-            return executeJsExpression(code, false, this);
+            return executeJsExpression(code, this, { skipVisibilityCheck: false });
         }
         catch (err) {
             return { err };
@@ -308,10 +326,10 @@ export default class TestRun extends EventEmitter {
     }
 
     addError (err, screenshotPath) {
-        var errList = err instanceof TestCafeErrorList ? err.items : [err];
+        const errList = err instanceof TestCafeErrorList ? err.items : [err];
 
         errList.forEach(item => {
-            var adapter = new TestRunErrorFormattableAdapter(item, {
+            const adapter = new TestRunErrorFormattableAdapter(item, {
                 userAgent:      this.browserConnection.userAgent,
                 screenshotPath: screenshotPath || '',
                 testRunPhase:   this.phase
@@ -346,9 +364,14 @@ export default class TestRun extends EventEmitter {
     }
 
     async _enqueueSetBreakpointCommand (callsite, error) {
+        if (this.browserConnection.isHeadlessBrowser()) {
+            this.warningLog.addWarning(WARNING_MESSAGE.debugInHeadlessError);
+            return;
+        }
+
         debugLogger.showBreakpoint(this.session.id, this.browserConnection.userAgent, callsite, error);
 
-        this.debugging = await this.executeCommand(new SetBreakpointCommand(!!error), callsite);
+        this.debugging = await this.executeCommand(new serviceCommands.SetBreakpointCommand(!!error), callsite);
     }
 
     _removeAllNonServiceTasks () {
@@ -356,7 +379,6 @@ export default class TestRun extends EventEmitter {
 
         this.browserManipulationQueue.removeAllNonServiceManipulations();
     }
-
 
     // Current driver task
     get currentDriverTask () {
@@ -372,12 +394,12 @@ export default class TestRun extends EventEmitter {
     }
 
     _rejectCurrentDriverTask (err) {
-        err.callsite = err.callsite || this.driverTaskQueue[0].callsite;
+        err.callsite             = err.callsite || this.currentDriverTask.callsite;
+        err.isRejectedDriverTask = true;
 
         this.currentDriverTask.reject(err);
         this._removeAllNonServiceTasks();
     }
-
 
     // Pending request
     _clearPendingRequest () {
@@ -392,7 +414,6 @@ export default class TestRun extends EventEmitter {
         this.pendingRequest.resolve(command);
         this._clearPendingRequest();
     }
-
 
     // Handle driver request
     _fulfillCurrentDriverTask (driverStatus) {
@@ -416,14 +437,17 @@ export default class TestRun extends EventEmitter {
     }
 
     _handleDriverRequest (driverStatus) {
-        var pageError = this.pendingPageError || driverStatus.pageError;
+        const isTestDone                 = this.currentDriverTask && this.currentDriverTask.command.type === COMMAND_TYPE.testDone;
+        const pageError                  = this.pendingPageError || driverStatus.pageError;
+        const currentTaskRejectedByError = pageError && this._handlePageErrorStatus(pageError);
 
-        var currentTaskRejectedByError = pageError && this._handlePageErrorStatus(pageError);
+        if (this.disconnected)
+            return new Promise((_, reject) => reject());
 
         this.consoleMessages.concat(driverStatus.consoleMessages);
 
         if (!currentTaskRejectedByError && driverStatus.isCommandResult) {
-            if (this.currentDriverTask.command.type === COMMAND_TYPE.testDone) {
+            if (isTestDone) {
                 this._resolveCurrentDriverTask();
 
                 return TEST_DONE_CONFIRMATION_RESPONSE;
@@ -448,17 +472,31 @@ export default class TestRun extends EventEmitter {
     }
 
     // Execute command
-    static _shouldAddCommandToQueue (command) {
-        return command.type !== COMMAND_TYPE.wait && command.type !== COMMAND_TYPE.setPageLoadTimeout &&
-               command.type !== COMMAND_TYPE.debug && command.type !== COMMAND_TYPE.useRole && command.type !== COMMAND_TYPE.assertion;
+    async _executeExpression (command) {
+        const { resultVariableName, isAsyncExpression } = command;
+
+        let expression = command.expression;
+
+        if (isAsyncExpression)
+            expression = `await ${expression}`;
+
+        if (resultVariableName)
+            expression = `${resultVariableName} = ${expression}, ${resultVariableName}`;
+
+        if (isAsyncExpression)
+            expression = `(async () => { return ${expression}; }).apply(this);`;
+
+        const result = this._evaluate(expression);
+
+        return isAsyncExpression ? await result : result;
     }
 
     async _executeAssertion (command, callsite) {
-        var assertionTimeout = command.options.timeout === void 0 ? this.opts.assertionTimeout : command.options.timeout;
-        var executor         = new AssertionExecutor(command, assertionTimeout, callsite);
+        const assertionTimeout = command.options.timeout === void 0 ? this.opts.assertionTimeout : command.options.timeout;
+        const executor         = new AssertionExecutor(command, assertionTimeout, callsite);
 
-        executor.once('start-assertion-retries', timeout => this.executeCommand(new ShowAssertionRetriesStatusCommand(timeout)));
-        executor.once('end-assertion-retries', success => this.executeCommand(new HideAssertionRetriesStatusCommand(success)));
+        executor.once('start-assertion-retries', timeout => this.executeCommand(new serviceCommands.ShowAssertionRetriesStatusCommand(timeout)));
+        executor.once('end-assertion-retries', success => this.executeCommand(new serviceCommands.HideAssertionRetriesStatusCommand(success)));
 
         return executor.run();
     }
@@ -507,7 +545,7 @@ export default class TestRun extends EventEmitter {
         if (this.pendingPageError && isCommandRejectableByPageError(command))
             return this._rejectCommandWithPageError(callsite);
 
-        if (TestRun._shouldAddCommandToQueue(command))
+        if (isExecutableOnClientCommand(command))
             this.addingDriverTasksCount++;
 
         this._adjustConfigurationWithCommand(command);
@@ -535,6 +573,9 @@ export default class TestRun extends EventEmitter {
         if (command.type === COMMAND_TYPE.assertion)
             return this._executeAssertion(command, callsite);
 
+        if (command.type === COMMAND_TYPE.executeExpression)
+            return await this._executeExpression(command, callsite);
+
         if (command.type === COMMAND_TYPE.getBrowserConsoleMessages)
             return await this._enqueueBrowserConsoleMessagesCommand(command, callsite);
 
@@ -542,7 +583,7 @@ export default class TestRun extends EventEmitter {
     }
 
     _rejectCommandWithPageError (callsite) {
-        var err = this.pendingPageError;
+        const err = this.pendingPageError;
 
         err.callsite          = callsite;
         this.pendingPageError = null;
@@ -552,9 +593,9 @@ export default class TestRun extends EventEmitter {
 
     // Role management
     async getStateSnapshot () {
-        var state = this.session.getStateSnapshot();
+        const state = this.session.getStateSnapshot();
 
-        state.storages = await this.executeCommand(new BackupStoragesCommand());
+        state.storages = await this.executeCommand(new serviceCommands.BackupStoragesCommand());
 
         return state;
     }
@@ -567,26 +608,26 @@ export default class TestRun extends EventEmitter {
         this.session.useStateSnapshot(null);
 
         if (this.activeDialogHandler) {
-            var removeDialogHandlerCommand = new SetNativeDialogHandlerCommand({ dialogHandler: { fn: null } });
+            const removeDialogHandlerCommand = new actionCommands.SetNativeDialogHandlerCommand({ dialogHandler: { fn: null } });
 
             await this.executeCommand(removeDialogHandlerCommand);
         }
 
         if (this.speed !== this.opts.speed) {
-            var setSpeedCommand = new SetTestSpeedCommand({ speed: this.opts.speed });
+            const setSpeedCommand = new actionCommands.SetTestSpeedCommand({ speed: this.opts.speed });
 
             await this.executeCommand(setSpeedCommand);
         }
 
         if (this.pageLoadTimeout !== this.opts.pageLoadTimeout) {
-            var setPageLoadTimeoutCommand = new SetPageLoadTimeoutCommand({ duration: this.opts.pageLoadTimeout });
+            const setPageLoadTimeoutCommand = new actionCommands.SetPageLoadTimeoutCommand({ duration: this.opts.pageLoadTimeout });
 
             await this.executeCommand(setPageLoadTimeoutCommand);
         }
     }
 
     async _getStateSnapshotFromRole (role) {
-        var prevPhase = this.phase;
+        const prevPhase = this.phase;
 
         this.phase = PHASE.inRoleInitializer;
 
@@ -610,14 +651,14 @@ export default class TestRun extends EventEmitter {
 
         this.disableDebugBreakpoints = true;
 
-        var bookmark = new TestRunBookmark(this, role);
+        const bookmark = new TestRunBookmark(this, role);
 
         await bookmark.init();
 
         if (this.currentRoleId)
             this.usedRoleStates[this.currentRoleId] = await this.getStateSnapshot();
 
-        var stateSnapshot = this.usedRoleStates[role.id] || await this._getStateSnapshotFromRole(role);
+        const stateSnapshot = this.usedRoleStates[role.id] || await this._getStateSnapshotFromRole(role);
 
         this.session.useStateSnapshot(stateSnapshot);
 
@@ -628,24 +669,32 @@ export default class TestRun extends EventEmitter {
         this.disableDebugBreakpoints = false;
     }
 
-
     // Get current URL
     async getCurrentUrl () {
-        var builder = new ClientFunctionBuilder(() => {
+        const builder = new ClientFunctionBuilder(() => {
             /* eslint-disable no-undef */
             return window.location.href;
             /* eslint-enable no-undef */
         }, { boundTestRun: this });
 
-        var getLocation = builder.getFunction();
+        const getLocation = builder.getFunction();
 
         return await getLocation();
     }
+
+    _disconnect (err) {
+        this.disconnected = true;
+
+        this._rejectCurrentDriverTask(err);
+
+        this.emit('disconnected', err);
+
+        delete testRunTracker.activeTestRuns[this.session.id];
+    }
 }
 
-
 // Service message handlers
-var ServiceMessages = TestRun.prototype;
+const ServiceMessages = TestRun.prototype;
 
 ServiceMessages[CLIENT_MESSAGES.ready] = function (msg) {
     this.debugLog.driverMessage(msg);
@@ -665,7 +714,7 @@ ServiceMessages[CLIENT_MESSAGES.ready] = function (msg) {
 
     // NOTE: browsers abort an opened xhr request after a certain timeout (the actual duration depends on the browser).
     // To avoid this, we send an empty response after 2 minutes if we didn't get any command.
-    var responseTimeout = setTimeout(() => this._resolvePendingRequest(null), MAX_RESPONSE_DELAY);
+    const responseTimeout = setTimeout(() => this._resolvePendingRequest(null), MAX_RESPONSE_DELAY);
 
     return new Promise((resolve, reject) => {
         this.pendingRequest = { resolve, reject, responseTimeout };
@@ -675,8 +724,8 @@ ServiceMessages[CLIENT_MESSAGES.ready] = function (msg) {
 ServiceMessages[CLIENT_MESSAGES.readyForBrowserManipulation] = async function (msg) {
     this.debugLog.driverMessage(msg);
 
-    var result = null;
-    var error  = null;
+    let result = null;
+    let error  = null;
 
     try {
         result = await this.browserManipulationQueue.executePendingManipulation(msg);

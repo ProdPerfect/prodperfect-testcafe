@@ -1,5 +1,306 @@
 # Changelog
 
+## v0.23.2 (2018-11-12)
+
+### Bug Fixes
+
+* TestCafe no longer posts internal messages to the browser console ([#3099](https://github.com/DevExpress/testcafe/issues/3099))
+* The TestCafe process no longer terminates before the report is written to a file ([#2502](https://github.com/DevExpress/testcafe/issues/2502))
+
+## v0.23.1 (2018-11-7)
+
+### Enhancements
+
+#### :gear: Select Tests and Fixtures to Run by Their Metadata ([#2527](https://github.com/DevExpress/testcafe/issues/2527)) by [@NickCis](https://github.com/NickCis)
+
+You can now run only those tests or fixtures whose [metadata](https://devexpress.github.io/testcafe/documentation/test-api/test-code-structure.html#specifying-testing-metadata) contains a specific set of values.
+
+Use the [--test-meta](https://devexpress.github.io/testcafe/documentation/using-testcafe/command-line-interface.html#--test-meta-keyvaluekey2value2) flag to specify values to look for in test metadata.
+
+```sh
+testcafe chrome my-tests --test-meta device=mobile,env=production
+```
+
+To select fixtures by their metadata, use the [--fixture-meta](https://devexpress.github.io/testcafe/documentation/using-testcafe/command-line-interface.html#--fixture-meta-keyvaluekey2value2) flag.
+
+```sh
+testcafe chrome my-tests --fixture-meta subsystem=payments,type=regression
+```
+
+In the API, test and fixture metadata is now passed to the [runner.filter](https://devexpress.github.io/testcafe/documentation/using-testcafe/programming-interface/runner.html#filter) method in the `testMeta` and `fixtureMeta` parameters. Use this metadata to decide whether to run the current test.
+
+```js
+runner.filter((testName, fixtureName, fixturePath, testMeta, fixtureMeta) => {
+    return testMeta.mobile === 'true' &&
+        fixtureMeta.env === 'staging';
+});
+```
+
+#### :gear: Run Dynamically Loaded Tests ([#2074](https://github.com/DevExpress/testcafe/issues/2074))
+
+You can now run tests imported from external libraries or generated dynamically even if the `.js` file you provide to TestCafe does not contain any tests.
+
+Previously, this was not possible because TestCafe required test files to contain the [fixture](https://devexpress.github.io/testcafe/documentation/test-api/test-code-structure.html#fixtures) and [test](https://devexpress.github.io/testcafe/documentation/test-api/test-code-structure.html#tests) directives. Now you can bypass this check. To do this, provide the [--disable-test-syntax-validation](https://devexpress.github.io/testcafe/documentation/using-testcafe/command-line-interface.html#--disable-test-syntax-validation) command line flag.
+
+```sh
+testcafe safari test.js --disable-test-syntax-validation
+```
+
+In the API, use the [disableTestSyntaxValidation](https://devexpress.github.io/testcafe/documentation/using-testcafe/programming-interface/runner.html#run) option.
+
+```js
+runner.run({ disableTestSyntaxValidation: true })
+```
+
+### Bug Fixes
+
+* Touch events are now simulated with correct touch properties (`touches`, `targetTouches`, `changedTouches`) ([#2856](https://github.com/DevExpress/testcafe/issues/2856))
+* Google Chrome now closes correctly on macOS after tests are finished ([#2860](https://github.com/DevExpress/testcafe/issues/2860))
+* Internal attribute and node changes no longer provoke `MutationObserver` notifications ([testcafe-hammerhead/#1769](https://github.com/DevExpress/testcafe-hammerhead/issues/1769))
+* The `ECONNABORTED` error is no longer raised ([testcafe-hammerhead/#1744](https://github.com/DevExpress/testcafe-hammerhead/issues/1744))
+* Websites that use `Location.ancestorOrigins` are now proxied correctly ([testcafe-hammerhead/#1342](https://github.com/DevExpress/testcafe-hammerhead/issues/1342))
+
+## v0.23.0 (2018-10-25)
+
+### Enhancements
+
+#### :gear: Stop Test Run After the First Test Fail ([#1323](https://github.com/DevExpress/testcafe/issues/1323))
+
+You can now configure TestCafe to stop the entire test run after the first test fail. This saves your time when you fix problems with your tests one by one.
+
+Specify the [--sf](https://devexpress.github.io/testcafe/documentation/using-testcafe/command-line-interface.html#--sf---stop-on-first-fail) flag to enable this feature when you run tests from the command line.
+
+```sh
+testcafe chrome my-tests --sf
+```
+
+In the API, use the [stopOnFirstFail](https://devexpress.github.io/testcafe/documentation/using-testcafe/programming-interface/runner.html#run) option.
+
+```js
+runner.run({ stopOnFirstFail: true })
+```
+
+#### :gear: View the JavaScript Errors' Stack Traces in Reports ([#2043](https://github.com/DevExpress/testcafe/issues/2043))
+
+Now when a JavaScript error occurs on the tested webpage, the test run report includes a stack trace for this error (only if the [--skip-js-errors](https://devexpress.github.io/testcafe/documentation/using-testcafe/command-line-interface.html#-e---skip-js-errors) option is disabled).
+
+![A report that contains a stack trace for a client JS error](docs/articles/images/client-error-stack-report.png)
+
+#### :gear: Browsers are Automatically Restarted When They Stop Responding ([#1815](https://github.com/DevExpress/testcafe/issues/1815))
+
+If a browser stops responding while it executes tests, TestCafe restarts the browser and reruns the current test in a new browser instance.
+If the same problem occurs with this test two more times, the test run finishes and an error is thrown.
+
+### Bug Fixes
+
+* An error message about an unawaited call to an async function is no longer displayed when an uncaught error occurs ([#2557](https://github.com/DevExpress/testcafe/issues/2557))
+* A request hook is no longer added multiple times when a filter rule is used ([#2650](https://github.com/DevExpress/testcafe/issues/2650))
+* Screenshot links in test run reports now contain paths specified by the `--screenshot-pattern` option ([#2726](https://github.com/DevExpress/testcafe/issues/2726))
+* Assertion chains no longer produce unhandled promise rejections ([#2852](https://github.com/DevExpress/testcafe/issues/2852))
+* The `moment` loader now works correctly in the Jest environment ([#2500](https://github.com/DevExpress/testcafe/issues/2500))
+* TestCafe no longer hangs if the screenshot directory contains forbidden symbols ([#681](https://github.com/DevExpress/testcafe/issues/681))
+* The `--ssl` option's parameters are now parsed correctly ([#2924](https://github.com/DevExpress/testcafe/issues/2924))
+* TestCafe now throws a meaningful error if an assertion method is missing ([#1063](https://github.com/DevExpress/testcafe/issues/1063))
+* TestCafe no longer hangs when it clicks a custom element ([#2861](https://github.com/DevExpress/testcafe/issues/2861))
+* TestCafe now performs keyboard navigation between radio buttons/groups in a way that matches the native browser behavior ([#2067](https://github.com/DevExpress/testcafe/issues/2067), [#2045](https://github.com/DevExpress/testcafe/issues/2045))
+* The `fetch` method can now be used with data URLs ([#2865](https://github.com/DevExpress/testcafe/issues/2865))
+* The `switchToIframe` function no longer throws an error ([#2956](https://github.com/DevExpress/testcafe/issues/2956))
+* TestCafe can now scroll through fixed elements when the action has custom offsets ([#2978](https://github.com/DevExpress/testcafe/issues/2978))
+* You can now specify the current directory or its parent directories as the base path to store screenshots ([#2975](https://github.com/DevExpress/testcafe/issues/2975))
+* Tests no longer hang up when you try to debug in headless browsers ([#2846](https://github.com/DevExpress/testcafe/issues/2846))
+* The `removeEventListener` function now works correctly when an object is passed as its third argument ([testcafe-hammerhead/#1737](https://github.com/DevExpress/testcafe-hammerhead/issues/1737))
+* Hammerhead no longer adds the `event` property to a null `contentWindow` in IE11 ([testcafe-hammerhead/#1684](https://github.com/DevExpress/testcafe-hammerhead/issues/1684))
+* The browser no longer resets connection with the server for no reason ([testcafe-hammerhead/#1647](https://github.com/DevExpress/testcafe-hammerhead/issues/1647))
+* Hammerhead now stringifies values correctly before outputting them to the console ([testcafe-hammerhead/#1750](https://github.com/DevExpress/testcafe-hammerhead/issues/1750))
+* A document fragment from the top window can now be correctly appended to an iframe ([testcafe-hammerhead/#912](https://github.com/DevExpress/testcafe-hammerhead/issues/912))
+* Lifecycle callbacks that result from the `document.registerElement` method are no longer called twice ([testcafe-hammerhead/#695](https://github.com/DevExpress/testcafe-hammerhead/issues/695))
+
+## v0.22.0 (2018-9-3)
+
+### Enhancements
+
+#### :gear: CoffeeScript Support ([#1556](https://github.com/DevExpress/testcafe/issues/1556)) by [@GeoffreyBooth](https://github.com/GeoffreyBooth)
+
+TestCafe now allows you to write tests in CoffeeScript. You do not need to compile CoffeeScript manually or make any customizations - everything works out of the box.
+
+```coffee
+import { Selector } from 'testcafe'
+
+fixture 'CoffeeScript Example'
+    .page 'https://devexpress.github.io/testcafe/example/'
+
+nameInput = Selector '#developer-name'
+
+test 'Test', (t) =>
+    await t
+        .typeText(nameInput, 'Peter')
+        .typeText(nameInput, 'Paker', { replace: true })
+        .typeText(nameInput, 'r', { caretPos: 2 })
+        .expect(nameInput.value).eql 'Parker';
+```
+
+#### :gear: Failed Selector Method Pinpointed in the Report ([#2568](https://github.com/DevExpress/testcafe/issues/2568))
+
+Now the test run report can identify which selector's method does not match any DOM element.
+
+![Failed Selector Report](docs/articles/images/failed-selector-report.png)
+
+#### :gear: Fail on Uncaught Server Errors ([#2546](https://github.com/DevExpress/testcafe/issues/2546))
+
+Previously, TestCafe ignored uncaught errors and unhandled promise rejections that occurred on the server. Whenever an error or a promise rejection happened, test execution continued.
+
+Starting from v0.22.0, tests fail if a server error or promise rejection is unhandled. To return to the previous behavior, we have introduced the `skipUncaughtErrors` option. Use the [--skip-uncaught-errors](https://devexpress.github.io/testcafe/documentation/using-testcafe/command-line-interface.html#-u---skip-uncaught-errors) flag in the command line or the [skipUncaughtErrors](https://devexpress.github.io/testcafe/documentation/using-testcafe/programming-interface/runner.html#run) option in the API.
+
+```sh
+testcafe chrome tests/fixture.js --skipUncaughtErrors
+```
+
+```js
+runner.run({skipUncaughtErrors:true})
+```
+
+#### :gear: Use Glob Patterns in `runner.src` ([#980](https://github.com/DevExpress/testcafe/issues/980))
+
+You can now use [glob patterns](https://github.com/isaacs/node-glob#glob-primer) in the [runner.src](https://devexpress.github.io/testcafe/documentation/using-testcafe/programming-interface/runner.html#src) method to specify a set of test files.
+
+```js
+runner.src(['/home/user/tests/**/*.js', '!/home/user/tests/foo.js']);
+```
+
+### Bug Fixes
+
+* `RequestLogger` no longer fails when it tries to stringify a null request body ([#2718](https://github.com/DevExpress/testcafe/issues/2718))
+* Temporary directories are now correctly removed when the test run is finished ([#2735](https://github.com/DevExpress/testcafe/issues/2735))
+* TestCafe no longer throws `ECONNRESET` when run against a Webpack project ([#2711](https://github.com/DevExpress/testcafe/issues/2711))
+* An error is no longer thrown when TestCafe tests Sencha ExtJS applications in IE11 ([#2639](https://github.com/DevExpress/testcafe/issues/2639))
+* Firefox no longer waits for page elements to appear without necessity ([#2080](https://github.com/DevExpress/testcafe/issues/2080))
+* `${BROWSER}` in the screenshot pattern now correctly resolves to the browser name ([#2742](https://github.com/DevExpress/testcafe/issues/2742))
+* The `toString` function now returns a native string for overridden descriptor ancestors ([testcafe-hammerhead/#1713](https://github.com/DevExpress/testcafe-hammerhead/issues/1713))
+* The `iframe` flag is no longer added when a form with `target="_parent"` is submitted ([testcafe-hammerhead/#1680](https://github.com/DevExpress/testcafe-hammerhead/issues/1680))
+* Hammerhead no longer sends request headers in lower case ([testcafe-hammerhead/#1380](https://github.com/DevExpress/testcafe-hammerhead/issues/1380))
+* The overridden `createHTMLDocument` method has the right context now ([testcafe-hammerhead/#1722](https://github.com/DevExpress/testcafe-hammerhead/issues/1722))
+* Tests no longer lose connection ([testcafe-hammerhead/#1647](https://github.com/DevExpress/testcafe-hammerhead/issues/1647))
+* The case when both the `X-Frame-Options` header and a CSP with `frame-ancestors` are set is now handled correctly ([testcafe-hammerhead/#1666](https://github.com/DevExpress/testcafe-hammerhead/issues/1666))
+* The mechanism that resolves URLs on the client now works correctly ([testcafe-hammerhead/#1701](https://github.com/DevExpress/testcafe-hammerhead/issues/1701))
+* `LiveNodeListWrapper` now imitates the native behavior correctly ([testcafe-hammerhead/#1376](https://github.com/DevExpress/testcafe-hammerhead/issues/1376))
+
+## v0.21.1 (2018-8-8)
+
+### Bug fixes
+
+* The `RequestLogger.clear` method no longer raises an error if it is called during a long running request ([#2688](https://github.com/DevExpress/testcafe/issues/2688))
+* TestCafe now uses native methods to work with the `fetch` request ([#2686](https://github.com/DevExpress/testcafe/issues/2686))
+* A URL now resolves correctly for elements in a `document.implementation` instance ([testcafe-hammerhead/#1673](https://github.com/DevExpress/testcafe-hammerhead/issues/1673))
+* Response header names specified via the `respond` function are lower-cased now ([testcafe-hammerhead/#1704](https://github.com/DevExpress/testcafe-hammerhead/issues/1704))
+* The cookie domain validation rule on the client side has been fixed ([testcafe-hammerhead/#1702](https://github.com/DevExpress/testcafe-hammerhead/issues/1702))
+
+## v0.21.0 (2018-8-2)
+
+### Enhancements
+
+#### :gear: Test Web Pages Served Over HTTPS ([#1985](https://github.com/DevExpress/testcafe/issues/1985))
+
+Some browser features (like [Service Workers](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API), [Geolocation API](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API), [ApplePaySession](https://developer.apple.com/documentation/apple_pay_on_the_web/applepaysession), or [SubtleCrypto](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto)) require a secure origin. This means that the website should use the HTTPS protocol.
+
+Starting with v0.21.0, TestCafe can serve proxied web pages over HTTPS. This allows you to test pages that require a secure origin.
+
+To enable HTTPS when you use TestCafe through the command line, specify the [--ssl](https://devexpress.github.io/testcafe/documentation/using-testcafe/command-line-interface.html#--ssl-options) flag followed by the [HTTPS server options](https://nodejs.org/api/https.html#https_https_createserver_options_requestlistener). The most commonly used options are described in the [TLS topic](https://nodejs.org/api/tls.html#tls_tls_createsecurecontext_options) in the Node.js documentation.
+
+```sh
+testcafe --ssl pfx=path/to/file.pfx;rejectUnauthorized=true;...
+```
+
+When you use a programming API, pass the HTTPS server options to the [createTestCafe](https://devexpress.github.io/testcafe/documentation/using-testcafe/programming-interface/createtestcafe.html) method.
+
+```js
+'use strict';
+
+const createTestCafe        = require('testcafe');
+const selfSignedSertificate = require('openssl-self-signed-certificate');
+let runner                  = null;
+
+const sslOptions = {
+    key:  selfSignedSertificate.key,
+    cert: selfSignedSertificate.cert
+};
+
+createTestCafe('localhost', 1337, 1338, sslOptions)
+    .then(testcafe => {
+        runner = testcafe.createRunner();
+    })
+    .then(() => {
+        return runner
+            .src('test.js')
+
+            // Browsers restrict self-signed certificate usage unless you
+            // explicitly set a flag specific to each browser.
+            // For Chrome, this is '--allow-insecure-localhost'.
+            .browsers('chrome --allow-insecure-localhost')
+            .run();
+    });
+```
+
+See [Connect to TestCafe Server over HTTPS](https://devexpress.github.io/testcafe/documentation/using-testcafe/common-concepts/connect-to-the-testcafe-server-over-https.html) for more information.
+
+#### :gear: Construct Screenshot Paths with Patterns ([#2152](https://github.com/DevExpress/testcafe/issues/2152))
+
+You can now use patterns to construct paths to screenshots. TestCafe provides a number of placeholders you can include in the path, for example, `${DATE}`, `${TIME}`, `${USERAGENT}`, etc. For a complete list, refer to the command line [--screenshot-path-pattern flag description](https://devexpress.github.io/testcafe/documentation/using-testcafe/command-line-interface.html#-p---screenshot-path-pattern).
+
+You specify a screenshot path pattern when you run tests. Each time TestCafe takes a screenshot, it substitutes the placeholders with actual values and saves the screenshot to the resulting path.
+
+The following example shows how to specify a screenshot path pattern through the command line:
+
+```sh
+testcafe all test.js -s screenshots -p '${DATE}_${TIME}/test-${TEST_INDEX}/${USERAGENT}/${FILE_INDEX}.png'
+```
+
+When you use a programming API, pass the screenshot path pattern to the [runner.screenshots method](https://devexpress.github.io/testcafe/documentation/using-testcafe/programming-interface/runner.html#screenshots).
+
+```js
+runner.screenshots('reports/screenshots/', true, '${TEST_INDEX}/${OS}/${BROWSER}-v${BROWSER_VERSION}/${FILE_INDEX}.png');
+```
+
+#### :gear: Add Info About Screenshots and Quarantine Attempts to Custom Reports ([#2216](https://github.com/DevExpress/testcafe/issues/2216))
+
+Custom reporters can now access screenshots' data and the history of quarantine attempts (if the test run in the quarantine mode).
+
+The following information about screenshots is now available:
+
+* the path to the screenshot file,
+* the path to the thumbnail image,
+* the browser's user agent,
+* the quarantine attempt number (if the screenshot was taken in the quarantine mode),
+* whether the screenshot was taken because the test failed.
+
+If the test was run in the quarantine mode, you can also determine which attempts failed and passed.
+
+Refer to the [reportTestDone method description](https://devexpress.github.io/testcafe/documentation/extending-testcafe/reporter-plugin/reporter-methods.html#reporttestdone) for details on how to access this information.
+
+### Bug Fixes
+
+* HTML5 drag events are no longer simulated if `event.preventDefault` is called for the `mousedown` event ([#2529](https://github.com/DevExpress/testcafe/issues/2529))
+* File upload no longer causes an exception when there are several file inputs on the page ([#2642](https://github.com/DevExpress/testcafe/issues/2642))
+* File upload now works with inputs that have the `required` attribute ([#2509](https://github.com/DevExpress/testcafe/issues/2509))
+* The `load` event listener is no longer triggered when added to an image ([testcafe-hammerhead/#1688](https://github.com/DevExpress/testcafe-hammerhead/issues/1688))
+
+## v0.20.5 (2018-7-18)
+
+### Bug fixes
+
+* The `buttons` property was added to the `MouseEvent` instance ([#2056](https://github.com/DevExpress/testcafe/issues/2056))
+* Response headers were converted to lowercase ([#2534](https://github.com/DevExpress/testcafe/issues/2534))
+* Updated flow definitions ([#2053](https://github.com/DevExpress/testcafe/issues/2053))
+* An `AttributesWrapper` instance is now updated when the the element's property specifies the `disabled` attribute ([#2539](https://github.com/DevExpress/testcafe/issues/2539))
+* TestCafe no longer hangs when it redirects from a tested page to the 'about:error' page with a hash ([#2371](https://github.com/DevExpress/testcafe/issues/2371))
+* TestCafe now reports a warning for a mocked request if CORS validation failed ([#2482](https://github.com/DevExpress/testcafe/issues/2482))
+* Prevented situations when a request logger tries to stringify a body that is not logged ([#2555](https://github.com/DevExpress/testcafe/issues/2555))
+* The Selector API now reports `NaN` instead of `integer` when type validation fails ([#2470](https://github.com/DevExpress/testcafe/issues/2470))
+* Enabled `noImplicitAny` and disabled `skipLibCheck` in the TypeScript compiler ([#2497](https://github.com/DevExpress/testcafe/issues/2497))
+* Pages with `rel=prefetch` links no longer hang during test execution ([#2528](https://github.com/DevExpress/testcafe/issues/2528))
+* Fixed the `TypeError: this.res.setHeader is not a function` error in Firefox ([#2438](https://github.com/DevExpress/testcafe/issues/2438))
+* The `formtarget` attribute was overridden ([testcafe-hammerhead/#1513](https://github.com/DevExpress/testcafe-hammerhead/issues/1513))
+* `fetch.toString()` now equals `function fetch() { [native code] }` ([testcafe-hammerhead/#1662](https://github.com/DevExpress/testcafe-hammerhead/issues/1662))
+
 ## v0.20.4 (2018-6-25)
 
 ### Enhancements
@@ -8,7 +309,7 @@
 
 ### Bug fixes
 
-* `fetch` requests are now correctly proxied in a specific case ([testcafe-hammerhead/#1613](https://github.com/DevExpress/testcafe-hammerhead/issues/1613))
+* `fetch` requests now correctly proxied in a specific case ([testcafe-hammerhead/#1613](https://github.com/DevExpress/testcafe-hammerhead/issues/1613))
 * Resources responding with `304` HTTP status code and with the 'content-length: ' header are proxied correctly now ([testcafe-hammerhead/#1602](https://github.com/DevExpress/testcafe-hammerhead/issues/1602))
 * The `transfer` argument of `window.postMessage` is passed correctly now ([testcafe-hammerhead/#1535](https://github.com/DevExpress/testcafe-hammerhead/issues/1535))
 * Incorrect focus events order in IE has been fixed ([#2072](https://github.com/DevExpress/testcafe/issues/2072))
