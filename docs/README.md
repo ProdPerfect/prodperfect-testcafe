@@ -1,6 +1,6 @@
 # Documentation
 
-> This is the documentation's development version. The functionality described here may not be included in the current release version. Unreleased functionality may change or be dropped before the next release. The release version's documentation is available at the [TestCafe website](https://devexpress.github.io/testcafe/documentation/getting-started/).
+> This is the documentation's development version. The functionality described here may not be included in the current release version. Unreleased functionality can change or may not be included the next release. The current release version's documentation is available on the [TestCafe website](https://devexpress.github.io/testcafe/documentation/getting-started/).
 
 * [GETTING STARTED](articles/documentation/getting-started/README.md)
 * [USING TESTCAFE](articles/documentation/using-testcafe/README.md)
@@ -20,8 +20,8 @@
       * [User Profiles](articles/documentation/using-testcafe/common-concepts/browsers/user-profiles.md)
     * [Concurrent Test Execution](articles/documentation/using-testcafe/common-concepts/concurrent-test-execution.md)
     * [Reporters](articles/documentation/using-testcafe/common-concepts/reporters.md)
+    * [Connect to the TestCafe Server over HTTPS](articles/documentation/using-testcafe/common-concepts/connect-to-the-testcafe-server-over-https.md)
 * [TEST API](articles/documentation/test-api/README.md)
-  * [TypeScript Support](articles/documentation/test-api/typescript-support.md)
   * [Test Code Structure](articles/documentation/test-api/test-code-structure.md)
     * [Fixtures](articles/documentation/test-api/test-code-structure.md#fixtures)
     * [Tests](articles/documentation/test-api/test-code-structure.md#tests)
@@ -65,7 +65,7 @@
     * [Examples of Using Client Functions](articles/documentation/test-api/obtaining-data-from-the-client/examples-of-using-client-functions.md)
   * [Intercepting HTTP Requests](articles/documentation/test-api/intercepting-http-requests/README.md)
     * [Logging HTTP Requests](articles/documentation/test-api/intercepting-http-requests/logging-http-requests.md)
-    * [Mocking HTTP Responses](articles/documentation/test-api/intercepting-http-requests/mocking-http-responses.md)
+    * [Mocking HTTP Requests](articles/documentation/test-api/intercepting-http-requests/mocking-http-requests.md)
     * [Creating a Custom HTTP Request Hook](articles/documentation/test-api/intercepting-http-requests/creating-a-custom-http-request-hook.md)
     * [Specifying Which Requests are Handled by the Hook](articles/documentation/test-api/intercepting-http-requests/specifying-which-requests-are-handled-by-the-hook.md)
     * [Attaching Hooks to Tests and Fixtures](articles/documentation/test-api/intercepting-http-requests/attaching-hooks-to-tests-and-fixtures.md)
@@ -79,6 +79,8 @@
   * [Working with &lt;iframes&gt;](articles/documentation/test-api/working-with-iframes.md)
   * [Debugging](articles/documentation/test-api/debugging.md)
   * [Accessing Console Messages](articles/documentation/test-api/accessing-console-messages.md)
+  * [TypeScript Support](articles/documentation/test-api/typescript-support.md)
+  * [CoffeeScript Support](articles/documentation/test-api/coffeescript-support.md)
   * [A-Z Index](articles/documentation/test-api/a-z-index.md)
 * [EXTENDING TESTCAFE](articles/documentation/extending-testcafe/README.md)
   * [Reporter Plugin](articles/documentation/extending-testcafe/reporter-plugin/README.md)
@@ -89,9 +91,12 @@
 * [RECIPES](articles/documentation/recipes/README.md)
   * [Debug in Chrome Developer Tools](articles/documentation/recipes/debug-in-chrome-dev-tools.md)
   * [Debug in Visual Studio Code](articles/documentation/recipes/debug-in-visual-studio-code.md)
+  * [Debug in WebStorm](articles/documentation/recipes/debug-in-webstorm.md)
   * [Integrating TestCafe with CI Systems](articles/documentation/recipes/integrating-testcafe-with-ci-systems/README.md)
     * [AppVeyor](articles/documentation/recipes/integrating-testcafe-with-ci-systems/appveyor.md)
+    * [Azure DevOps](articles/documentation/recipes/integrating-testcafe-with-ci-systems/azure-devops.md)
     * [CircleCI](articles/documentation/recipes/integrating-testcafe-with-ci-systems/circleci.md)
+    * [GitLab](articles/documentation/recipes/integrating-testcafe-with-ci-systems/gitlab.md)
     * [Jenkins](articles/documentation/recipes/integrating-testcafe-with-ci-systems/jenkins.md)
     * [TeamCity](articles/documentation/recipes/integrating-testcafe-with-ci-systems/teamcity.md)
     * [Travis](articles/documentation/recipes/integrating-testcafe-with-ci-systems/travis.md)

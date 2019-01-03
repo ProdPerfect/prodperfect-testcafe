@@ -8,6 +8,7 @@ const uniqBy              = require('lodash').uniqBy;
 const createTestCafe      = require('../../lib/');
 const COMMAND             = require('../../lib/browser/connection/command');
 const Task                = require('../../lib/runner/task');
+const Reporter            = require('../../lib/reporter');
 const BrowserConnection   = require('../../lib/browser/connection');
 const BrowserSet          = require('../../lib/runner/browser-set');
 const browserProviderPool = require('../../lib/browser/provider/pool');
@@ -240,6 +241,20 @@ describe('Runner', () => {
                 .screenshots('..', false, '${BROWSER}/./${TEST}')
                 .src('test/server/data/test-suites/basic/testfile2.js')
                 .run();
+        });
+
+        it('Should throw an error if the screenshot path pattern is specified without a base screenshot path', () => {
+            return runner
+                .browsers(connection)
+                .screenshots(void 0, true, '${DATE}')
+                .src('test/server/data/test-suites/basic/testfile2.js')
+                .run()
+                .then(() => {
+                    throw new Error('Promise rejection expected');
+                })
+                .catch(err => {
+                    expect(err.message).eql('Cannot use the screenshot path pattern without a base screenshot path specified');
+                });
         });
     });
 
@@ -667,6 +682,8 @@ describe('Runner', () => {
         const origCreateBrowserJobs = Task.prototype._createBrowserJobs;
         const origAbort             = Task.prototype.abort;
 
+        const origAssignTaskEventHandlers = Reporter.prototype._assignTaskEventHandlers;
+
         let closeCalled        = 0;
         let abortCalled        = false;
         let taskActionCallback = null;
@@ -736,6 +753,8 @@ describe('Runner', () => {
             Task.prototype.abort = () => {
                 abortCalled = true;
             };
+
+            Reporter.prototype._assignTaskEventHandlers = noop;
         });
 
         after(() => {
@@ -743,6 +762,8 @@ describe('Runner', () => {
 
             Task.prototype._createBrowserJobs = origCreateBrowserJobs;
             Task.prototype.abort              = origAbort;
+
+            Reporter.prototype._assignTaskEventHandlers = origAssignTaskEventHandlers;
         });
 
         it('Should not stop the task until local connection browsers are not closed when task done', () => {

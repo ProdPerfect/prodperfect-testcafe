@@ -140,8 +140,8 @@
     content:
     - name: Logging HTTP Requests
       url: /documentation/test-api/intercepting-http-requests/logging-http-requests.md
-    - name: Mocking HTTP Responses
-      url: /documentation/test-api/intercepting-http-requests/mocking-http-responses.md
+    - name: Mocking HTTP Requests
+      url: /documentation/test-api/intercepting-http-requests/mocking-http-requests.md
     - name: Creating a Custom HTTP Request Hook
       url: /documentation/test-api/intercepting-http-requests/creating-a-custom-http-request-hook.md
     - name: Specifying Which Requests are Handled by the Hook
@@ -199,13 +199,19 @@
       url: /documentation/recipes/debug-in-chrome-dev-tools.md
     - name: Debug in Visual Studio Code
       url: /documentation/recipes/debug-in-visual-studio-code.md
+    - name: Debug in WebStorm
+      url: /documentation/recipes/debug-in-webstorm.md
     - name: Integrating TestCafe with CI Systems
       url: /documentation/recipes/integrating-testcafe-with-ci-systems/README.md
       content:
       - name: AppVeyor
         url: /documentation/recipes/integrating-testcafe-with-ci-systems/appveyor.md
+      - name: Azure DevOps
+        url: /documentation/recipes/integrating-testcafe-with-ci-systems/azure-devops.md
       - name: CircleCI
         url: /documentation/recipes/integrating-testcafe-with-ci-systems/circleci.md
+      - name: GitLab
+        url: /documentation/recipes/integrating-testcafe-with-ci-systems/gitlab.md
       - name: Jenkins
         url: /documentation/recipes/integrating-testcafe-with-ci-systems/jenkins.md
       - name: TeamCity
