@@ -172,11 +172,12 @@ export default class Reporter {
         if (!this.outStream || Reporter._isSpecialStream(this.outStream) || !isWritableStream(this.outStream))
             return;
 
-        this.outStream.end();
-
-        await new Promise(resolve => {
+        const p = new Promise(resolve => {
             this.outStream.once('finish', resolve);
             this.outStream.once('error', resolve);
         });
+
+        this.outStream.end();
+        await p;
     }
 }
